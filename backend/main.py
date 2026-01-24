@@ -17,11 +17,17 @@ from app.api import (
 # FASTAPI APP SETUP
 # ============================================================
 
+from app.models.db import create_db_and_tables
+
 app = FastAPI(
     title="GridNinja Backend",
     version="0.2.0",
     description="Physics-informed control plane for Smart Grid + Data Center operations (Refactored).",
 )
+
+@app.on_event("startup")
+def on_startup():
+    create_db_and_tables()
 
 # CORS: explicit origins for security
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")

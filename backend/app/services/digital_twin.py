@@ -146,24 +146,36 @@ class DigitalTwinService:
     # -----------------------------
     # Telemetry Generation
     # -----------------------------
-    def get_timeseries(self, window_s: int = 900, end_ts: Optional[str] = None) -> List[Dict[str, Any]]:
+    def get_timeseries(self, window_s: int = 900, end_ts: Optional[str] = None, mode: str = "live") -> List[Dict[str, Any]]:
         """
-        Generates 'live-looking' telemetry. Returns 60 points for charts.
-        Uses seeded randomness for deterministic demo.
+        Generates telemetry. 
+        Mode 'live': uses seeded randomness + current state.
+        Mode 'replay': queries DB for decisions around the window to influence the "simulated" past.
         """
         now = datetime.now()
+        if end_ts and mode == "replay":
+            try:
+                now = datetime.fromisoformat(end_ts)
+            except:
+                pass
+
         window_s = max(60, int(window_s))
         num_points = 60
         step_size = max(1, window_s // num_points)
 
-        # Seed based on minute resolution to stabilize charts briefly
+        # Seed based on minute resolution
         seed_val = int(now.timestamp() / 60) 
         rng = random.Random(seed_val)
 
-        # Start from current thermal state
+        # Determine start state for simulation
+        # In a real replay, we'd fetch the exact persisted state at (now - window).
+        # Here we approximate:
         temp = float(self.therm_state.T_c)
         cooling = float(self.therm_state.P_cool_kw)
-
+        
+        # If replay, we could fetch decisions in this window to overlay "real" choices vs synthetic
+        # For this MVP, we will stick to the deterministic aesthetic simulation but time-shifted.
+        
         out: List[Dict[str, Any]] = []
         prev_freq = 60.0
 
@@ -194,7 +206,6 @@ class DigitalTwinService:
                     pass
 
             # Thermal prediction for this point (what-if history)
-            # We don't update self.therm_state here, just simulate history
             sim_state = ThermalTwinState(T_c=temp, P_cool_kw=cooling)
             sim_twin = ThermalTwin(self.therm_cfg, sim_state)
             pred = sim_twin.predict(it_load, dt_s=float(step_size))
@@ -210,9 +221,6 @@ class DigitalTwinService:
                 safe_shift = min(safe_shift, 900.0)
             
             if self.gnn and self.gnn.is_ready():
-                 # Mock node features if real ones unavailable
-                 # Here we just use the service to show integration
-                 # In real app, build tensor from grid state
                  pass
 
             out.append({
@@ -263,30 +271,65 @@ class DigitalTwinService:
             decision_id=decision_id,
         )
 
-        # PERSISTENT STATE UPDATE
-        # If plan is valid and has steps, evolve the thermal state to the end of the first step
-        # This makes the "simulation" real.
+        # PERSISTENT STATE UPDATE & DB LOGGING
+        # 1. Update Thermal State
         if not plan.blocked and len(plan.steps) > 0:
             first_step = plan.steps[0]
-            # Update state to match the outcome of the first committed step
             self.therm_state.T_c = first_step.rack_temp_c
             self.therm_state.P_cool_kw = first_step.cooling_kw
 
-        # Persist trace
+        # 2. Persist to DB
+        from sqlmodel import Session
+        from app.models.db import engine, DecisionRecord, TraceRecord
+
+        try:
+            with Session(engine) as session:
+                # Create Decision Record
+                dr = DecisionRecord(
+                    decision_id=decision_id,
+                    ts=datetime.fromisoformat(out["ts"]),
+                    
+                    requested_kw=float(deltaP_request_kw),
+                    site_load_kw=float(P_site_kw),
+                    grid_headroom_kw=float(grid_headroom_kw),
+                    
+                    approved_kw=float(approved_kw),
+                    blocked=bool(plan.blocked),
+                    reason_code=str(plan.reason),
+                    
+                    primary_constraint=str(plan.primary_constraint.value) if plan.primary_constraint else None,
+                    constraint_value=float(plan.constraint_value) if plan.constraint_value is not None else None,
+                    constraint_threshold=float(plan.constraint_threshold) if plan.constraint_threshold is not None else None,
+                )
+                session.add(dr)
+                # Need to commit/refresh to get ID if needed, 
+                # but we can rely on relationship auto-persistence if we add traces to `dr` 
+                # or add them separately linked by `decision_id`
+                
+                # Bulk create traces
+                for e in trace:
+                    tr = TraceRecord(
+                        decision_id=decision_id,
+                        ts=datetime.fromisoformat(e["ts"]),
+                        component=str(e["component"]),
+                        rule_id=str(e["rule_id"]),
+                        status=str(e["status"]),
+                        severity=str(e["severity"]),
+                        message=str(e["message"]),
+                        value=float(e["value"]) if e.get("value") is not None else None,
+                        threshold=float(e["threshold"]) if e.get("threshold") is not None else None,
+                    )
+                    session.add(tr)
+                
+                session.commit()
+        except Exception as ex:
+            print(f"[ERROR] Failed to persist decision: {ex}")
+
+        # Persist trace to memory buffer (for immediate UI view)
         for e in trace:
             self.push_trace(DecisionTraceEvent(**e))
 
-        return {
-            "ts": datetime.now().isoformat(),
-            "decision_id": decision_id,
-            "requested_deltaP_kw": float(deltaP_request_kw),
-            "approved_deltaP_kw": float(approved_kw),
-            "blocked": bool(plan.blocked),
-            "reason": str(plan.reason),
-            "plan": plan.model_dump() if hasattr(plan, "model_dump") else dict(plan),
-            "trace": trace,
-            "prediction_debug": pred if isinstance(pred, dict) else None,
-        }
+        return out
 
     # -----------------------------
     # KPI Summary

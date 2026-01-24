@@ -139,6 +139,12 @@ class RampPlan(BaseModel):
     approved_deltaP_kw: float
     blocked: bool
     reason: str  # DecisionReasonCode (string)
+    
+    # Explainability details
+    primary_constraint: Optional[ComponentType] = None
+    constraint_value: Optional[float] = None
+    constraint_threshold: Optional[float] = None
+    
     steps: List[RampPlanStep] = Field(default_factory=list)
 
 

@@ -343,10 +343,39 @@ def build_ramp_plan(
     # 4) Finalize plan
     # -----------------------------
     blocked = best <= 1e-6
+    primary_constraint = None
+    val = None
+    thresh = None
+    reason = "OK"
+
     if blocked:
-        reason = "THERMAL_BLOCKED"
-    else:
-        reason = "OK"
+        # Determine WHY it was blocked by checking what limited the binary search
+        # 1. Grid Check
+        if deltaP_cap <= 1e-6:
+            reason = "GRID_HEADROOM_ZERO"
+            primary_constraint = ComponentType.GRID
+            val = float(req)
+            thresh = float(headroom)
+        else:
+            # 2. Thermal Check (simulate max request to see what breaks)
+            ok_max, _, caploss_max = simulate_candidate(deltaP_cap)
+            if not ok_max:
+                # It's thermal or battery
+                # Quick check: is battery limit hit?
+                if caploss_max > float(batt_cfg.max_cap_loss_frac_per_decision):
+                    reason = "BATTERY_WEAR_BLOCKED"
+                    primary_constraint = ComponentType.POLICY
+                    val = float(caploss_max)
+                    thresh = float(batt_cfg.max_cap_loss_frac_per_decision)
+                else:
+                    reason = "THERMAL_BLOCKED"
+                    primary_constraint = ComponentType.THERMAL
+                    # Probing simulation to get exact temp
+                    sim_state = ThermalTwinState(T_c=float(state.T_c), P_cool_kw=float(state.P_cool_kw))
+                    twin = ThermalTwin(cfg=cfg, state=sim_state)
+                    pred = twin.predict(float(P_site_kw) + float(deltaP_cap), float(dt_s))
+                    val = float(pred["rack_temp_c_next"])
+                    thresh = float(cfg.T_max)
 
     emit(
         component=ComponentType.POLICY,
@@ -363,6 +392,9 @@ def build_ramp_plan(
         approved_deltaP_kw=float(best),
         blocked=bool(blocked),
         reason=str(reason),
+        primary_constraint=primary_constraint,
+        constraint_value=val,
+        constraint_threshold=thresh,
         steps=best_steps,
     )
 
