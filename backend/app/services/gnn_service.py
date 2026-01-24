@@ -11,8 +11,6 @@ import torch.nn.functional as F
 
 # Safe optional import
 try:
-# Safe optional import
-try:
     from torch_geometric.data import Data
     from torch_geometric.nn import GINEConv, global_mean_pool
     HAS_PYG = True
