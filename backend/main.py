@@ -13,6 +13,47 @@ from app.api import (
     routes_trace,
 )
 
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+import uuid
+import time
+import logging
+
+# Configure Logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("api")
+
+class RequestIDMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        request_id = str(uuid.uuid4())
+        request.state.request_id = request_id
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        return response
+
+class StructuredLoggerMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        start_time = time.perf_counter()
+        
+        # Process request
+        response = await call_next(request)
+        
+        process_time_ms = (time.perf_counter() - start_time) * 1000.0
+        req_id = getattr(request.state, "request_id", "unknown")
+        
+        # Log JSON structure
+        log_entry = {
+            "evt": "api_req",
+            "req_id": req_id,
+            "method": request.method,
+            "path": request.url.path,
+            "status": response.status_code,
+            "latency_ms": round(process_time_ms, 2)
+        }
+        logger.info(str(log_entry))
+        
+        return response
+
 # ============================================================
 # FASTAPI APP SETUP
 # ============================================================
@@ -49,6 +90,10 @@ app = FastAPI(
     description="Physics-informed control plane for Smart Grid + Data Center operations (Refactored).",
     lifespan=lifespan,
 )
+
+# Middleware (Order matters: Outer to Inner)
+app.add_middleware(StructuredLoggerMiddleware)
+app.add_middleware(RequestIDMiddleware)
 
 # CORS: explicit origins for security
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
