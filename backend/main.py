@@ -20,6 +20,7 @@ from app.api import (
 from app.models.db import create_db_and_tables
 from app.deps import get_twin_service
 import asyncio
+from contextlib import asynccontextmanager
 
 async def simulation_tick_loop():
     """
