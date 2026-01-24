@@ -246,6 +246,13 @@ class DigitalTwinService:
             temp = pred["rack_temp_c_next"]
             cooling = pred["cooling_kw_next"]
 
+            # Default safe shift (fallback)
+            safe_shift = 1200.0
+            if temp > (self.therm_cfg.T_max - 2.0):
+                safe_shift = 800.0
+            if dip:
+                safe_shift = min(safe_shift, 900.0)
+
             if self.gnn and self.gnn.is_ready():
                  # 1. Synthesize random grid state: (33, 3) tensor
                  # Features: [P_load_MW, Q_load_MVAR, P_gen_MW]
@@ -269,17 +276,12 @@ class DigitalTwinService:
                  # We wrap in try/except to avoid crashing the demo if GNN fails
                  try:
                      pred_shift_kw = self.gnn.predict_safe_shift_kw(x_node)
-                     # Smooth the visual transition (averaging with previous or heuristic)
-                     # For demo "pop", we use the raw GNN or slightly smoothed
                      safe_shift = pred_shift_kw
                  except Exception:
                      pass
-            else:
-                # Fallback heuristics
-                if temp > (self.therm_cfg.T_max - 2.0):
-                    safe_shift = 800.0
-                if dip:
-                    safe_shift = min(safe_shift, 900.0)
+            
+            # The else block for heuristics is now covered by the default initialization above
+
 
             out.append({
                 "ts": t.isoformat(),
