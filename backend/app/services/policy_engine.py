@@ -326,8 +326,8 @@ def build_ramp_plan(
     best = 0.0
     best_steps: List[RampPlanStep] = []
     best_cap_loss = 0.0
-
-    for _ in range(12):
+    # 20 iters gives much better precision (~1e-6 relative error)
+    for _ in range(20):
         mid = (low + high) / 2.0
         ok, steps, caploss = simulate_candidate(mid)
 
