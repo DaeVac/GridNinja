@@ -12,7 +12,7 @@ router = APIRouter()
 async def telemetry_timeseries(
     window_s: int = Query(900, ge=60, le=3600, description="Lookback window (seconds)"),
     end_ts: Optional[str] = Query(None, description="Optional REPLAY end timestamp (ISO)"),
-    mode: str = Query("live", regex="^(live|replay)$", description="Mode: live or replay"),
+    mode: str = Query("live", pattern="^(live|replay)$", description="Mode: live or replay"),
 ) -> List[TelemetryTimeseriesPoint]:
     svc = get_twin_service()
     points = svc.get_timeseries(window_s=window_s, end_ts=end_ts, mode=mode)

@@ -278,6 +278,19 @@ class DigitalTwinService:
             self.therm_state.T_c = first_step.rack_temp_c
             self.therm_state.P_cool_kw = first_step.cooling_kw
 
+        # Prepare output dictionary
+        out = {
+            "ts": datetime.now().isoformat(),
+            "decision_id": decision_id,
+            "requested_deltaP_kw": float(deltaP_request_kw),
+            "approved_deltaP_kw": float(approved_kw),
+            "blocked": bool(plan.blocked),
+            "reason": str(plan.reason),
+            "plan": plan.model_dump() if hasattr(plan, "model_dump") else dict(plan),
+            "trace": trace,
+            "prediction_debug": pred if isinstance(pred, dict) else None,
+        }
+
         # 2. Persist to DB
         from sqlmodel import Session
         from app.models.db import engine, DecisionRecord, TraceRecord
