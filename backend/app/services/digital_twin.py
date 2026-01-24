@@ -345,8 +345,30 @@ class DigitalTwinService:
         return out
 
     # -----------------------------
-    # KPI Summary
+    # Tick Loop (Background Sim)
     # -----------------------------
+    def tick(self, dt_s: float = 1.0):
+        """
+        Called by background loop to advance physics.
+        Simulates passive thermal drift based on current cooling vs "base" load.
+        """
+        # 1. Simulate a random walk for IT load if no decision is active
+        # (For this demo, we assume a fluctuating base load around 1000kW)
+        base_load = 1000.0
+        # Simple random fluctuation
+        current_load = base_load + random.uniform(-20, 20)
+        
+        # 2. Evolve Thermal State
+        twin = ThermalTwin(self.therm_cfg, self.therm_state)
+        # We step the twin forward by dt_s
+        twin.step(P_total_kw=current_load, dt_s=dt_s)
+        
+        # self.therm_state is updated in-place by twin.step
+        
+        # Option: Persist snapshots periodically? 
+        # For now, we only persist explicit decisions to keep DB clean.
+        
+        return self.therm_state
     def get_kpi_summary(self, window_s: int = 900) -> Dict[str, Any]:
         events = list(self.trace)
         return compute_trace_kpis(events, window_s=window_s)

@@ -18,16 +18,36 @@ from app.api import (
 # ============================================================
 
 from app.models.db import create_db_and_tables
+from app.deps import get_twin_service
+import asyncio
+
+async def simulation_tick_loop():
+    """
+    Background task that advances the digital twin physics every second.
+    """
+    svc = get_twin_service()
+    while True:
+        try:
+            svc.tick(dt_s=1.0)
+        except Exception as e:
+            print(f"[SIM LOOP ERROR] {e}")
+        await asyncio.sleep(1.0)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    create_db_and_tables()
+    # Start background loop
+    task = asyncio.create_task(simulation_tick_loop())
+    yield
+    # Clean up (cancel task)
+    task.cancel()
 
 app = FastAPI(
     title="GridNinja Backend",
     version="0.2.0",
     description="Physics-informed control plane for Smart Grid + Data Center operations (Refactored).",
+    lifespan=lifespan,
 )
-
-@app.on_event("startup")
-def on_startup():
-    create_db_and_tables()
 
 # CORS: explicit origins for security
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
