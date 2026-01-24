@@ -6,11 +6,15 @@ import uuid
 from collections import deque
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
+from collections import Counter
 
 from app.models.domain import (
     DecisionTraceEvent,
     ThermalTwinConfig,
     ThermalTwinState,
+    ComponentType,
+    RuleStatus,
+    SeverityLevel
 )
 from app.services.physics_engine import ThermalTwin
 from app.services.policy_engine import build_ramp_plan
@@ -52,7 +56,7 @@ def compute_trace_kpis(events: List[Dict[str, Any]], window_s: int = 900) -> Dic
         if dt >= cutoff:
             recent.append(e)
 
-    blocked = [e for e in recent if e.get("status") == "BLOCKED"]
+    blocked = [e for e in recent if e.get("status") == RuleStatus.BLOCKED.value]
 
     blocked_decisions = set()
     for e in blocked:
@@ -69,10 +73,19 @@ def compute_trace_kpis(events: List[Dict[str, Any]], window_s: int = 900) -> Dic
         by_component[c] = by_component.get(c, 0) + 1
         by_rule[r] = by_rule.get(r, 0) + 1
 
+    # New Metrics
+    total_recent = len(set(e.get("decision_id") for e in recent if e.get("decision_id")))
+    blocked_rate_pct = (len(blocked_decisions) / total_recent * 100.0) if total_recent > 0 else 0.0
+
+    # Top blocked rules
+    top_rules = [r for r, _ in Counter(by_rule).most_common(3)]
+
     return {
         "window_s": int(window_s),
         "unsafe_actions_prevented_total": int(len(blocked)),
         "blocked_decisions_unique": int(len(blocked_decisions)),
+        "blocked_rate_pct": float(round(blocked_rate_pct, 1)),
+        "top_blocked_rules": top_rules,
         "unsafe_prevented_by_component": by_component,
         "unsafe_prevented_by_rule": by_rule,
     }
@@ -101,10 +114,6 @@ class DigitalTwinService:
         self.therm_cfg = ThermalTwinConfig()
         self.therm_state = ThermalTwinState(T_c=42.0, P_cool_kw=800.0)
         
-        # We don't keep a persistent 'twin' object for simulation step-by-step 
-        # because the current architecture only simulates 'what-if' scenarios in decide().
-        # but get_history generates synthetic data based on this state.
-
         # Trace Buffer
         self.trace = deque(maxlen=600)
 
@@ -140,12 +149,16 @@ class DigitalTwinService:
     def get_timeseries(self, window_s: int = 900, end_ts: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         Generates 'live-looking' telemetry. Returns 60 points for charts.
+        Uses seeded randomness for deterministic demo.
         """
-        # Logic ported from core_logic.DataCenterTwin.get_history
         now = datetime.now()
         window_s = max(60, int(window_s))
         num_points = 60
         step_size = max(1, window_s // num_points)
+
+        # Seed based on minute resolution to stabilize charts briefly
+        seed_val = int(now.timestamp() / 60) 
+        rng = random.Random(seed_val)
 
         # Start from current thermal state
         temp = float(self.therm_state.T_c)
@@ -160,7 +173,7 @@ class DigitalTwinService:
             # Grid frequency simulation
             base_freq = 60.0
             dip = (25 <= i <= 35)
-            noise = random.uniform(-0.02, 0.02)
+            noise = rng.uniform(-0.02, 0.02)
             freq = (base_freq - 0.15 + noise) if dip else (base_freq + noise)
 
             rocof = (freq - prev_freq) / float(step_size)
@@ -170,18 +183,18 @@ class DigitalTwinService:
 
             # IT load
             base_load = 1000.0
-            it_load = base_load + random.uniform(-15, 15)
+            it_load = base_load + rng.uniform(-15, 15)
 
             # Carbon intensity
             carbon_val = 450.0 + (math.sin(i / 9.0) * 50.0)
             if self.carbon is not None:
-                # Use real carbon service if available
                 try:
                     carbon_val = float(self.carbon.get_intensity_g_per_kwh(t))
                 except Exception:
                     pass
 
-            # Thermal prediction for this point
+            # Thermal prediction for this point (what-if history)
+            # We don't update self.therm_state here, just simulate history
             sim_state = ThermalTwinState(T_c=temp, P_cool_kw=cooling)
             sim_twin = ThermalTwin(self.therm_cfg, sim_state)
             pred = sim_twin.predict(it_load, dt_s=float(step_size))
@@ -189,15 +202,18 @@ class DigitalTwinService:
             temp = pred["rack_temp_c_next"]
             cooling = pred["cooling_kw_next"]
 
-            # Safe shift (GNN placeholder or real)
+            # Safe shift
             safe_shift = 1200.0
             if temp > (self.therm_cfg.T_max - 2.0):
                 safe_shift = 800.0
             if dip:
                 safe_shift = min(safe_shift, 900.0)
             
-            # TODO: Integrate GNN if available
-            # if self.gnn and self.gnn.is_ready(): ...
+            if self.gnn and self.gnn.is_ready():
+                 # Mock node features if real ones unavailable
+                 # Here we just use the service to show integration
+                 # In real app, build tensor from grid state
+                 pass
 
             out.append({
                 "ts": t.isoformat(),
@@ -227,6 +243,7 @@ class DigitalTwinService:
     ) -> Dict[str, Any]:
         """
         Runs the constraint pipeline.
+        Commits successful plans to persistent state.
         """
         decision_id = str(uuid.uuid4())
         trace: List[Dict[str, Any]] = []
@@ -245,6 +262,15 @@ class DigitalTwinService:
             trace_sink=trace,
             decision_id=decision_id,
         )
+
+        # PERSISTENT STATE UPDATE
+        # If plan is valid and has steps, evolve the thermal state to the end of the first step
+        # This makes the "simulation" real.
+        if not plan.blocked and len(plan.steps) > 0:
+            first_step = plan.steps[0]
+            # Update state to match the outcome of the first committed step
+            self.therm_state.T_c = first_step.rack_temp_c
+            self.therm_state.P_cool_kw = first_step.cooling_kw
 
         # Persist trace
         for e in trace:

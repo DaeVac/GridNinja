@@ -1,0 +1,22 @@
+# General
+__pycache__/
+*.py[cod]
+.env
+.venv/
+env/
+venv/
+
+# Visual Studio Code
+.vscode/
+
+# Node/Next.js
+node_modules/
+.next/
+out/
+build/
+dist/
+
+# GNN Models (extracted)
+backend/models/
+backend/data/
+backend/models_tmp/

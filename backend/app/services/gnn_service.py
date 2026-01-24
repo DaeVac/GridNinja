@@ -9,13 +9,14 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+# Safe optional import
 try:
     from torch_geometric.nn import GINEConv, global_mean_pool
-except Exception as e:
-    raise RuntimeError(
-        "torch_geometric is required for GNN inference. "
-        "Install: pip install torch-geometric"
-    ) from e
+    HAS_PYG = True
+except ImportError:
+    HAS_PYG = False
+    GINEConv = object  # dummy
+    global_mean_pool = None
 
 
 # -----------------------------
@@ -24,6 +25,9 @@ except Exception as e:
 class SafeGNN(nn.Module):
     def __init__(self, node_dim=3, edge_dim=2, hidden_dim=64, num_layers=3):
         super().__init__()
+        if not HAS_PYG:
+            raise RuntimeError("SafeGNN requires torch_geometric")
+            
         self.node_enc = nn.Linear(node_dim, hidden_dim)
         self.edge_enc = nn.Linear(edge_dim, hidden_dim)
         self.convs = nn.ModuleList()
@@ -62,9 +66,10 @@ class SafeGNN(nn.Module):
 
 @dataclass
 class GNNConfig:
+    # Paths updated to match extracted zip structure (renamed during move)
     model_path: str = "models/safe_gnn_model.pth"
-    norm_path: str = "models/norm_stats_x.pt"  # contains x_mean/x_std + pgen_log1p bool
-    topology_path: str = "data/topology_case33bw.pt"  # saved edge_index/edge_attr
+    norm_path: str = "models/norm_stats_x.pt"
+    topology_path: str = "data/topology_case33bw.pt"
     dc_bus_idx: int = 17  # IEEE 33 bus "data center" node index
     output_unit: str = "MW"  # model predicts MW headroom by convention
     max_kw_cap: float = 1500.0  # clamp at backend for UI safety
@@ -73,23 +78,25 @@ class GNNConfig:
 class GNNHeadroomService:
     """
     Optional SafeGNN inference wrapper.
-    If files are missing, returns a safe fallback without crashing the demo.
+    If files are missing or libraries unavailable, returns safe fallback.
     """
 
     def __init__(self, cfg: Optional[GNNConfig] = None, device: Optional[str] = None):
         self.cfg = cfg or GNNConfig()
-
         self.device = torch.device(device or ("cuda" if torch.cuda.is_available() else "cpu"))
 
         self.model: Optional[nn.Module] = None
         self.edge_index: Optional[torch.Tensor] = None
         self.edge_attr: Optional[torch.Tensor] = None
-
         self.x_mean: Optional[torch.Tensor] = None
         self.x_std: Optional[torch.Tensor] = None
         self.use_log1p_pgen: bool = True
-
-        self._load_if_available()
+        
+        # Only load if library is available
+        if HAS_PYG:
+            self._load_if_available()
+        else:
+            print("[WARN] torch_geometric not found. GNN service will run in fallback mode.")
 
     def _load_if_available(self):
         if not os.path.exists(self.cfg.model_path):
@@ -99,23 +106,28 @@ class GNNHeadroomService:
         if not os.path.exists(self.cfg.topology_path):
             return
 
-        topo = torch.load(self.cfg.topology_path, map_location="cpu")
-        self.edge_index = topo["edge_index"].long().to(self.device)
-        self.edge_attr = topo["edge_attr"].float().to(self.device)
+        try:
+            topo = torch.load(self.cfg.topology_path, map_location="cpu")
+            self.edge_index = topo["edge_index"].long().to(self.device)
+            self.edge_attr = topo["edge_attr"].float().to(self.device)
 
-        norm = torch.load(self.cfg.norm_path, map_location="cpu")
-        self.x_mean = norm["x_mean"].float().to(self.device)
-        self.x_std = norm["x_std"].float().to(self.device)
-        self.use_log1p_pgen = bool(norm.get("pgen_log1p", True))
+            norm = torch.load(self.cfg.norm_path, map_location="cpu")
+            self.x_mean = norm["x_mean"].float().to(self.device)
+            self.x_std = norm["x_std"].float().to(self.device)
+            self.use_log1p_pgen = bool(norm.get("pgen_log1p", True))
 
-        self.model = SafeGNN(node_dim=3, edge_dim=2).to(self.device)
-        state = torch.load(self.cfg.model_path, map_location="cpu")
-        self.model.load_state_dict(state)
-        self.model.eval()
+            self.model = SafeGNN(node_dim=3, edge_dim=2).to(self.device)
+            state = torch.load(self.cfg.model_path, map_location="cpu")
+            self.model.load_state_dict(state)
+            self.model.eval()
+        except Exception as e:
+            print(f"[WARN] Failed to load GNN model: {e}")
+            self.model = None
 
     def is_ready(self) -> bool:
         return (
-            self.model is not None
+            HAS_PYG
+            and self.model is not None
             and self.edge_index is not None
             and self.edge_attr is not None
             and self.x_mean is not None
@@ -158,3 +170,4 @@ class GNNHeadroomService:
         # Backend clamp for UI safety and consistency
         kw = max(0.0, min(float(self.cfg.max_kw_cap), kw))
         return kw
+

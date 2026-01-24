@@ -1,7 +1,30 @@
 from __future__ import annotations
 
+from enum import Enum
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
+
+
+# ============================================================
+# 0) ENUMS (Type Safety)
+# ============================================================
+
+class ComponentType(str, Enum):
+    GRID = "GRID"
+    THERMAL = "THERMAL"
+    RAMP = "RAMP"
+    POLICY = "POLICY"
+    GNN = "GNN"
+
+class RuleStatus(str, Enum):
+    INFO = "INFO"
+    ALLOWED = "ALLOWED"
+    BLOCKED = "BLOCKED"
+
+class SeverityLevel(str, Enum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
 
 
 # ============================================================
@@ -66,10 +89,10 @@ class DecisionTraceEvent(BaseModel):
     ts: str
     decision_id: Optional[str] = None
 
-    component: str  # "GRID" | "THERMAL" | "RAMP" | "POLICY" | "GNN"
-    rule_id: str    # stable identifier
-    status: str     # "ALLOWED" | "BLOCKED" | "INFO"
-    severity: str   # "LOW" | "MEDIUM" | "HIGH"
+    component: ComponentType
+    rule_id: str
+    status: RuleStatus
+    severity: SeverityLevel
     message: str
 
     # Evidence fields for UI
@@ -86,6 +109,11 @@ class KpiSummary(BaseModel):
     window_s: int
     unsafe_actions_prevented_total: int
     blocked_decisions_unique: int
+    
+    # New metrics
+    blocked_rate_pct: float = 0.0
+    top_blocked_rules: List[str] = Field(default_factory=list)
+
     unsafe_prevented_by_component: Dict[str, int]
     unsafe_prevented_by_rule: Dict[str, int]
 

@@ -11,6 +11,9 @@ from app.models.domain import (
     RampPlanStep,
     ThermalTwinConfig,
     ThermalTwinState,
+    ComponentType,
+    RuleStatus,
+    SeverityLevel
 )
 from app.services.physics_engine import ThermalTwin
 
@@ -61,17 +64,11 @@ def build_ramp_plan(
 ) -> Tuple[float, RampPlan, Dict[str, float]]:
     """
     Returns: approved_deltaP_kw, RampPlan, prediction_debug
-
-    Pipeline:
-      1) clamp by grid headroom
-      2) simulate ramp under thermal constraints
-      3) enforce battery wear budget (Arrhenius proxy)
-      4) binary search for max safe deltaP
     """
 
     batt_cfg = BatteryDegradationConfig()
 
-    def emit(component: str, rule_id: str, status: str, severity: str, message: str, **kwargs):
+    def emit(component: ComponentType, rule_id: str, status: RuleStatus, severity: SeverityLevel, message: str, **kwargs):
         if trace_sink is None:
             return
         trace_sink.append(
@@ -95,10 +92,10 @@ def build_ramp_plan(
     deltaP_cap = min(req, headroom)
 
     emit(
-        component="GRID",
+        component=ComponentType.GRID,
         rule_id="GRID_HEADROOM_CLAMP",
-        status="INFO",
-        severity="LOW",
+        status=RuleStatus.INFO,
+        severity=SeverityLevel.LOW,
         message="Requested ΔP compared against grid headroom.",
         value=req,
         threshold=headroom,
@@ -109,10 +106,10 @@ def build_ramp_plan(
 
     if deltaP_cap < req:
         emit(
-            component="GRID",
+            component=ComponentType.GRID,
             rule_id="GRID_HEADROOM_REDUCED_ACTION",
-            status="BLOCKED",
-            severity="MEDIUM",
+            status=RuleStatus.BLOCKED,
+            severity=SeverityLevel.MEDIUM,
             message="Unsafe action prevented: requested ΔP reduced to fit grid headroom.",
             proposed_deltaP_kw=req,
             approved_deltaP_kw=deltaP_cap,
@@ -121,10 +118,10 @@ def build_ramp_plan(
 
     if deltaP_cap <= 0.0:
         emit(
-            component="GRID",
+            component=ComponentType.GRID,
             rule_id="GRID_HEADROOM_ZERO",
-            status="BLOCKED",
-            severity="HIGH",
+            status=RuleStatus.BLOCKED,
+            severity=SeverityLevel.HIGH,
             message="Unsafe action prevented: no grid headroom available.",
             proposed_deltaP_kw=req,
             approved_deltaP_kw=0.0,
@@ -146,12 +143,7 @@ def build_ramp_plan(
 
     def simulate_candidate(desired_kw: float) -> Tuple[bool, List[RampPlanStep], float]:
         """
-        Simulates ramping to desired_kw over horizon with:
-          - ramp rate constraint
-          - thermal gating
-          - battery wear budget
-        Returns:
-          (ok, steps, cap_loss_accum)
+        Simulates ramping to desired_kw over horizon
         """
         sim_state = ThermalTwinState(T_c=float(state.T_c), P_cool_kw=float(state.P_cool_kw))
         twin = ThermalTwin(cfg=cfg, state=sim_state)
@@ -169,10 +161,10 @@ def build_ramp_plan(
 
             if abs(delta_step) >= (max_step - 1e-9) and abs(delta_err) > 1e-6:
                 emit(
-                    component="RAMP",
+                    component=ComponentType.RAMP,
                     rule_id="RAMP_RATE_LIMIT",
-                    status="INFO",
-                    severity="LOW",
+                    status=RuleStatus.INFO,
+                    severity=SeverityLevel.LOW,
                     message="ΔP ramp-rate limited for stability.",
                     value=float(delta_step),
                     threshold=float(max_step),
@@ -185,7 +177,7 @@ def build_ramp_plan(
             P_total_kw = float(P_site_kw) + float(next_delta)
             pred = twin.predict(P_total_kw, float(dt_s))
 
-            # Battery wear proxy: cycling effort + cooling actuation effort
+            # Battery wear proxy
             throughput_kw = abs(next_delta) + abs(pred["cooling_kw_next"] - twin.state.P_cool_kw)
             dcap = arrhenius_aging_step(
                 cfg=batt_cfg,
@@ -196,10 +188,10 @@ def build_ramp_plan(
             cap_loss_accum += float(dcap)
 
             emit(
-                component="POLICY",
+                component=ComponentType.POLICY,
                 rule_id="BATTERY_AGING_STEP",
-                status="INFO",
-                severity="LOW",
+                status=RuleStatus.INFO,
+                severity=SeverityLevel.LOW,
                 message="Battery aging step computed (Arrhenius proxy).",
                 value=float(dcap),
                 threshold=float(batt_cfg.max_cap_loss_frac_per_decision),
@@ -209,14 +201,14 @@ def build_ramp_plan(
                 rack_temp_c=float(pred["rack_temp_c_next"]),
             )
 
-            # Thermal margin gating (optional but powerful)
+            # Thermal margin gating
             thermal_margin_c = float(cfg.T_max) - float(pred["rack_temp_c_next"])
             if thermal_margin_c < 0.5:
                 emit(
-                    component="THERMAL",
+                    component=ComponentType.THERMAL,
                     rule_id="THERMAL_MARGIN_TOO_THIN",
-                    status="BLOCKED",
-                    severity="MEDIUM",
+                    status=RuleStatus.BLOCKED,
+                    severity=SeverityLevel.MEDIUM,
                     message="Thermal margin too thin (<0.5°C). Blocking to avoid instability.",
                     value=float(pred["rack_temp_c_next"]),
                     threshold=float(cfg.T_max - 0.5),
@@ -240,10 +232,10 @@ def build_ramp_plan(
 
             if not bool(pred["thermal_ok_next"]):
                 emit(
-                    component="THERMAL",
+                    component=ComponentType.THERMAL,
                     rule_id="THERMAL_OVER_TEMP",
-                    status="BLOCKED",
-                    severity="HIGH",
+                    status=RuleStatus.BLOCKED,
+                    severity=SeverityLevel.HIGH,
                     message="Unsafe action prevented: thermal limit exceeded.",
                     value=float(pred["rack_temp_c_next"]),
                     threshold=float(cfg.T_max),
@@ -265,13 +257,13 @@ def build_ramp_plan(
                 )
                 return False, step_rows, cap_loss_accum
 
-            # Battery wear gate (per decision budget)
+            # Battery wear gate
             if cap_loss_accum > float(batt_cfg.max_cap_loss_frac_per_decision):
                 emit(
-                    component="POLICY",
+                    component=ComponentType.POLICY,
                     rule_id="BATTERY_WEAR_BLOCKED",
-                    status="BLOCKED",
-                    severity="MEDIUM",
+                    status=RuleStatus.BLOCKED,
+                    severity=SeverityLevel.MEDIUM,
                     message="Unsafe action prevented: projected battery wear exceeds decision budget.",
                     value=float(cap_loss_accum),
                     threshold=float(batt_cfg.max_cap_loss_frac_per_decision),
@@ -295,10 +287,10 @@ def build_ramp_plan(
 
             # Record step success
             emit(
-                component="THERMAL",
+                component=ComponentType.THERMAL,
                 rule_id="THERMAL_PREDICT_STEP",
-                status="ALLOWED",
-                severity="LOW",
+                status=RuleStatus.ALLOWED,
+                severity=SeverityLevel.LOW,
                 message="Thermal step prediction evaluated.",
                 value=float(pred["rack_temp_c_next"]),
                 threshold=float(cfg.T_max),
@@ -327,7 +319,7 @@ def build_ramp_plan(
         return True, step_rows, cap_loss_accum
 
     # -----------------------------
-    # 3) Binary search for max safe ΔP (conservative)
+    # 3) Binary search
     # -----------------------------
     low = 0.0
     high = float(deltaP_cap)
@@ -335,7 +327,6 @@ def build_ramp_plan(
     best_steps: List[RampPlanStep] = []
     best_cap_loss = 0.0
 
-    # 10-12 iters gives smooth + fast results
     for _ in range(12):
         mid = (low + high) / 2.0
         ok, steps, caploss = simulate_candidate(mid)
@@ -358,10 +349,10 @@ def build_ramp_plan(
         reason = "OK"
 
     emit(
-        component="POLICY",
+        component=ComponentType.POLICY,
         rule_id="APPROVED_DELTA_SELECTED",
-        status="ALLOWED" if not blocked else "BLOCKED",
-        severity="LOW" if not blocked else "HIGH",
+        status=RuleStatus.ALLOWED if not blocked else RuleStatus.BLOCKED,
+        severity=SeverityLevel.LOW if not blocked else SeverityLevel.HIGH,
         message="Approved ΔP selected via conservative search under constraints.",
         proposed_deltaP_kw=req,
         approved_deltaP_kw=float(best),

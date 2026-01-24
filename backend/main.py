@@ -23,15 +23,14 @@ app = FastAPI(
     description="Physics-informed control plane for Smart Grid + Data Center operations (Refactored).",
 )
 
-# CORS: allow local Next.js dev + hackathon flexibility
-ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*")
-allow_origins = ["*"] if ALLOWED_ORIGINS == "*" else [o.strip() for o in ALLOWED_ORIGINS.split(",")]
+# CORS: explicit origins for security
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allow_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_origins=[o.strip() for o in ALLOWED_ORIGINS],
+    allow_credentials=False,  # False unless cookies are strictly needed
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
 
