@@ -79,12 +79,44 @@ def compute_trace_kpis(events: List[Dict[str, Any]], window_s: int = 900) -> Dic
 
     # Top blocked rules
     top_rules = [r for r, _ in Counter(by_rule).most_common(3)]
+    
+    # Financial & Environmental Calcs (Simulated Estimate)
+    # We iterate over unique decisions to sum up approved kW vs requested
+    # Note: `events` are trace items. We need to aggregate by decision_id first to get the main 'approved_deltaP_kw'
+    # But trace items check specific rules. The 'APPROVED_DELTA_SELECTED' rule contains the final math.
+    
+    total_kwh_shifted = 0.0
+    total_blocked_requests = len(blocked_decisions)
+    
+    # Simple proxy: sum up 'approved_deltaP_kw' from "APPROVED_DELTA_SELECTED" events
+    for e in recent:
+        if e.get("rule_id") == "APPROVED_DELTA_SELECTED":
+             kw = float(e.get("approved_deltaP_kw", 0.0))
+             # Assume this shift lasts for the decision horizon (avg 30s)
+             total_kwh_shifted += (kw * (30.0 / 3600.0))
+    
+    # Formulas (Projected for Demo)
+    # $0.15/kWh difference between peak and off-peak
+    money_saved_usd = total_kwh_shifted * 0.15 
+    
+    # 0.4 kgCO2/kWh (grid avg)
+    co2_avoided_kg = total_kwh_shifted * 0.4
+    
+    # SLA Penalty: $500 per blocked job
+    sla_penalty_usd = total_blocked_requests * 500.0
+    
+    # Jobs on time
+    jobs_on_time_pct = 100.0 - blocked_rate_pct
 
     return {
         "window_s": int(window_s),
         "unsafe_actions_prevented_total": int(len(blocked)),
         "blocked_decisions_unique": int(len(blocked_decisions)),
         "blocked_rate_pct": float(round(blocked_rate_pct, 1)),
+        "jobs_completed_on_time_pct": float(round(jobs_on_time_pct, 1)),
+        "money_saved_usd": float(round(money_saved_usd, 2)),
+        "co2_avoided_kg": float(round(co2_avoided_kg, 2)),
+        "sla_penalty_usd": float(round(sla_penalty_usd, 2)),
         "top_blocked_rules": top_rules,
         "unsafe_prevented_by_component": by_component,
         "unsafe_prevented_by_rule": by_rule,
