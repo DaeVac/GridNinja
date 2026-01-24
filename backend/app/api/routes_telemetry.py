@@ -1,11 +1,10 @@
-# apps/backend/app/api/routes_telemetry.py
 from __future__ import annotations
 
 from typing import List, Optional
 from fastapi import APIRouter, Query
 
 from app.deps import get_twin_service
-from app.schemas.telemetry import TelemetryTimeseriesPoint
+from app.models.domain import TelemetryTimeseriesPoint
 
 router = APIRouter()
 

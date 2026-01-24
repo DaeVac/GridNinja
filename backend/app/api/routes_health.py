@@ -1,9 +1,8 @@
-# apps/backend/app/api/routes_health.py
 from __future__ import annotations
 
 from datetime import datetime
 from fastapi import APIRouter
-from app.schemas.health import HealthResponse
+from app.models.domain import HealthResponse
 
 router = APIRouter()
 

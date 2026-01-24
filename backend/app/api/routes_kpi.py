@@ -1,9 +1,8 @@
-# apps/backend/app/api/routes_kpi.py
 from __future__ import annotations
 
 from fastapi import APIRouter, Query
 from app.deps import get_twin_service
-from app.schemas.kpi import KpiSummary
+from app.models.domain import KpiSummary
 
 router = APIRouter()
 
