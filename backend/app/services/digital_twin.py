@@ -7,6 +7,7 @@ from collections import deque
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 from collections import Counter
+import torch
 
 from app.models.domain import (
     DecisionTraceEvent,
@@ -245,15 +246,42 @@ class DigitalTwinService:
             temp = pred["rack_temp_c_next"]
             cooling = pred["cooling_kw_next"]
 
-            # Safe shift
+            # Default safe shift (fallback)
             safe_shift = 1200.0
             if temp > (self.therm_cfg.T_max - 2.0):
                 safe_shift = 800.0
             if dip:
                 safe_shift = min(safe_shift, 900.0)
-            
+
             if self.gnn and self.gnn.is_ready():
-                 pass
+                 # 1. Synthesize random grid state: (33, 3) tensor
+                 # Features: [P_load_MW, Q_load_MVAR, P_gen_MW]
+                 # We vary P_load based on our "it_load" simulation + noise
+                 
+                 # Base standard loads (randomized roughly around 1.0 pu)
+                 # We create a random tensor on CPU, then let service handle device
+                 x_node = torch.zeros(33, 3)
+                 
+                 # Randomize loads (cols 0, 1) roughly 0.1 +/- 0.05 MW per node
+                 # This mimics a distribution feeder
+                 x_node[:, 0] = torch.rand(33) * 0.2  # P_load
+                 x_node[:, 1] = x_node[:, 0] * 0.3    # Q_load ~ 0.3 PF
+                 
+                 # Inject our specific site load at the DC bus (approx bus 17)
+                 # DC load is in kW, convert to MW
+                 dc_load_mw = it_load / 1000.0
+                 x_node[17, 0] = float(dc_load_mw)
+                 
+                 # Predict safe shift
+                 # We wrap in try/except to avoid crashing the demo if GNN fails
+                 try:
+                     pred_shift_kw = self.gnn.predict_safe_shift_kw(x_node)
+                     safe_shift = pred_shift_kw
+                 except Exception:
+                     pass
+            
+            # The else block for heuristics is now covered by the default initialization above
+
 
             out.append({
                 "ts": t.isoformat(),
@@ -288,11 +316,48 @@ class DigitalTwinService:
         decision_id = str(uuid.uuid4())
         trace: List[Dict[str, Any]] = []
 
+        # ==================================
+        # GNN HEADROOM CHECK
+        # ==================================
+        # If GNN is active, we ask it for the "safe headroom" and clamp the grid_headroom
+        # This prevents the heuristic/static limit from being the only guardrail.
+        gnn_limit_kw = None
+        if self.gnn and self.gnn.is_ready():
+            try:
+                 x_node = torch.zeros(33, 3)
+                 x_node[:, 0] = torch.rand(33) * 0.2
+                 x_node[:, 1] = x_node[:, 0] * 0.3
+                 
+                 # Inject current actual site load
+                 dc_load_mw = P_site_kw / 1000.0
+                 x_node[17, 0] = float(dc_load_mw)
+                 
+                 gnn_limit_kw = self.gnn.predict_safe_shift_kw(x_node)
+            except Exception as e:
+                print(f"[WARN] GNN inference failed: {e}")
+        
+        effective_headroom = grid_headroom_kw
+        if gnn_limit_kw is not None:
+            # Check if GNN is stricter
+            if gnn_limit_kw < grid_headroom_kw:
+                effective_headroom = gnn_limit_kw
+                trace.append({
+                    "ts": datetime.now().isoformat(),
+                    "component": ComponentType.GNN.value if hasattr(ComponentType, "GNN") else "GNN",
+                    "rule_id": "GNN_HEADROOM_CAP",
+                    "status": RuleStatus.INFO.value,
+                    "severity": SeverityLevel.LOW.value,
+                    "message": f"GNN clamped grid headroom from {grid_headroom_kw} to {gnn_limit_kw:.2f} kW",
+                    "value": float(gnn_limit_kw),
+                    "threshold": float(grid_headroom_kw),
+                    "decision_id": decision_id,
+                })
+
         current_state = self.get_current_thermal_state()
 
         approved_kw, plan, pred = build_ramp_plan(
             P_site_kw=P_site_kw,
-            grid_headroom_kw=grid_headroom_kw,
+            grid_headroom_kw=effective_headroom,
             cfg=self.therm_cfg,
             state=current_state,
             deltaP_request_kw=deltaP_request_kw,
