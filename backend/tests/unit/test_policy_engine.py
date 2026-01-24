@@ -9,7 +9,8 @@ from app.models.domain import RuleStatus
 
 @pytest.fixture
 def base_state():
-    return ThermalTwinState(T_c=40.0, P_cool_kw=100.0)
+    # P_cool=1250 * 0.8 efficacy = 1000kW cooling. Matches 1000kW site load.
+    return ThermalTwinState(T_c=40.0, P_cool_kw=1250.0)
 
 @pytest.fixture
 def base_cfg():
