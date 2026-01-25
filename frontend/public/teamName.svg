@@ -1,0 +1,12 @@
+<svg version="1.2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 128" width="256" height="128">
+	<style>
+		tspan { white-space:pre } 
+		.t0 { font-size: 36px;fill: #ffffff;font-weight: 400;font-family: "Poppins-Regular", "Poppins" } 
+	</style>
+	<text id="E = MC^2 + AI" transform="translate(6,77)">
+		<tspan x="0" y="0" class="t0">E</tspan><tspan  y="0" class="t0"> </tspan><tspan  y="0" class="t0">=</tspan><tspan  y="0" class="t0"> </tspan><tspan  y="0" class="t0">M</tspan><tspan  y="0" class="t0">C</tspan><tspan  y="0" class="t0">^</tspan><tspan  y="0" class="t0">2</tspan><tspan  y="0" class="t0"> </tspan><tspan  y="0" class="t0">+</tspan><tspan  y="0" class="t0"> </tspan><tspan  y="0" class="t0">A</tspan><tspan  y="0" class="t0">I</tspan><tspan  y="0" class="t0">
+</tspan>
+	</text>
+	<text id="" transform="translate(97,43)">
+	</text>
+</svg>

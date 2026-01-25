@@ -9,12 +9,26 @@ export default async function Home() {
 
   return (
     <div className="app-container">
-      <img
-          src="https://cdn.auth0.com/quantum-assets/dist/latest/logos/auth0/auth0-lockup-en-ondark.png"
-          alt="Auth0 Logo"
-          className="main-logo"
-      />
-      <div className="main-card-wrapper">
+      <div className="team-row">
+        <img src="/Neutron.0.GIF" alt="logo" />
+        <img src="/teamName.svg" alt="Team Name" />
+      </div>
+      <div className="header-container">
+        <div className="video-container">
+          <video autoPlay muted loop playsInline>
+            <source src="/Video Project.mp4" type="video/mp4" />
+          </video>
+        </div>
+        
+        <h1 className="main-title">
+          Optimize your Power Grid with AI
+        </h1>
+      </div>
+      <div className="login-button-container">
+        <LoginButton />
+      </div>
+      
+      {/* <div className="main-card-wrapper">
         <img
           src="https://cdn.auth0.com/quantum-assets/dist/latest/logos/auth0/auth0-lockup-en-ondark.png"
           alt="Auth0 Logo"
@@ -38,7 +52,7 @@ export default async function Home() {
             </>
           )}
         </div>
-      </div>
+      </div> */}
     </div>
   );
 }
