@@ -9,13 +9,18 @@ export default async function Home() {
 
   return (
     <div className="app-container">
+      <img
+          src="https://cdn.auth0.com/quantum-assets/dist/latest/logos/auth0/auth0-lockup-en-ondark.png"
+          alt="Auth0 Logo"
+          className="main-logo"
+      />
       <div className="main-card-wrapper">
         <img
           src="https://cdn.auth0.com/quantum-assets/dist/latest/logos/auth0/auth0-lockup-en-ondark.png"
           alt="Auth0 Logo"
           className="auth0-logo"
         />
-        <h1 className="main-title">Next.js + Auth0</h1>
+        <h1 className="main-title">GridNinja</h1>
         
         <div className="action-card">
           {user ? (
@@ -27,7 +32,7 @@ export default async function Home() {
           ) : (
             <>
               <p className="action-text">
-                Welcome! Please log in to access your protected content.
+                Welcome! Please log in to access Power Grid Data.
               </p>
               <LoginButton />
             </>
