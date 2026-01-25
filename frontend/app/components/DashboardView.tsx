@@ -147,34 +147,44 @@ export default function DashboardView({ user }: { user: any }) {
             </header>
 
             {/* --- Main Content --- */}
-            <main className="flex-1 p-6 grid grid-cols-1 lg:grid-cols-2 gap-6 relative overflow-hidden">
+            <main className="flex-1 p-6 flex flex-col gap-6 relative overflow-hidden">
 
-                {/* Left: Network Topology */}
-                <div className="flex flex-col gap-4 min-h-[500px] lg:h-full">
-                    <div className="flex items-center justify-between">
-                        <h2 className="text-xl font-bold flex items-center gap-2">
-                            <Zap className="w-5 h-5 text-amber-500" />
-                            Grid Topology
-                        </h2>
-                        <span className="text-xs font-mono text-gray-400">IEEE-33 BUS SYSTEM</span>
-                    </div>
-                    <div className="flex-1 bg-white rounded-xl border shadow-sm relative overflow-hidden hover:shadow-md transition-shadow">
-                        <GridVisualizer telemetry={latest} />
-                    </div>
-                </div>
+                {/* KPI Section */}
+                <section>
+                    <h2 className="text-xl font-bold text-gray-800 mb-3">Performance Metrics</h2>
+                    <KpiGrid items={kpis} isLoading={loadingKpi} columns={4} />
+                </section>
 
-                {/* Right: Thermal Twin */}
-                <div className="flex flex-col gap-4 h-full">
-                    <div className="flex items-center justify-between">
-                        <h2 className="text-xl font-bold flex items-center gap-2">
-                            <Thermometer className="w-5 h-5 text-blue-500" />
-                            3D Thermal Twin
-                        </h2>
-                        <span className="text-xs font-mono text-gray-400">PHYSICS ENGINE V2</span>
+                {/* Visualizers Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1">
+
+                    {/* Left: Network Topology */}
+                    <div className="flex flex-col gap-4 min-h-[500px] lg:h-full">
+                        <div className="flex items-center justify-between">
+                            <h2 className="text-xl font-bold flex items-center gap-2">
+                                <Zap className="w-5 h-5 text-amber-500" />
+                                Grid Topology
+                            </h2>
+                            <span className="text-xs font-mono text-gray-400">IEEE-33 BUS SYSTEM</span>
+                        </div>
+                        <div className="flex-1 bg-white rounded-xl border shadow-sm relative overflow-hidden hover:shadow-md transition-shadow">
+                            <GridVisualizer telemetry={latest} />
+                        </div>
                     </div>
-                    {/* Dark Card for 3D View */}
-                    <div className="flex-1 bg-slate-900 rounded-xl border border-slate-700 shadow-sm relative overflow-hidden hover:shadow-md transition-shadow">
-                        <ThermalVisualizer3D telemetry={latest} />
+
+                    {/* Right: Thermal Twin */}
+                    <div className="flex flex-col gap-4 h-full">
+                        <div className="flex items-center justify-between">
+                            <h2 className="text-xl font-bold flex items-center gap-2">
+                                <Thermometer className="w-5 h-5 text-blue-500" />
+                                3D Thermal Twin
+                            </h2>
+                            <span className="text-xs font-mono text-gray-400">PHYSICS ENGINE V2</span>
+                        </div>
+                        {/* Dark Card for 3D View */}
+                        <div className="flex-1 bg-slate-900 rounded-xl border border-slate-700 shadow-sm relative overflow-hidden hover:shadow-md transition-shadow">
+                            <ThermalVisualizer3D telemetry={latest} />
+                        </div>
                     </div>
                 </div>
 
