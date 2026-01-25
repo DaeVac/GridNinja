@@ -18,6 +18,7 @@ Flow:
 """
 from __future__ import annotations
 
+import asyncio
 import math
 import random
 import uuid
@@ -468,10 +469,11 @@ class DigitalTwinService:
     # -----------------------------
     # Tick Loop (Background Sim)
     # -----------------------------
-    def tick(self, dt_s: float = 1.0):
+    async def tick(self, dt_s: float = 1.0):
         """
         Called by background loop to advance physics.
         Simulates passive thermal drift based on current cooling vs "base" load.
+        Made async to prevent GNN inference from blocking the event loop.
         """
         # 1. Simulate a random walk for IT load if no decision is active
         # (For this demo, we assume a fluctuating base load around 1000kW)
@@ -484,8 +486,8 @@ class DigitalTwinService:
         # We step the twin forward by dt_s
         twin.step(P_total_kw=current_load, dt_s=dt_s)
         
-        # Update latest telemetry cache
-        self._latest = self._compute_latest_telemetry_point(current_load)
+        # Update latest telemetry cache (async to avoid blocking on GNN)
+        self._latest = await self._compute_latest_telemetry_point_async(current_load)
         
         # self.therm_state is updated in-place by twin.step
         
@@ -494,16 +496,14 @@ class DigitalTwinService:
         
         return self.therm_state
 
-    def _compute_latest_telemetry_point(self, current_load: float) -> Dict[str, Any]:
+    async def _compute_latest_telemetry_point_async(self, current_load: float) -> Dict[str, Any]:
         """
         Computes a single telemetry point for critical real-time monitoring.
-        Mirrors logic in get_timeseries but for 'now'.
+        Uses asyncio.to_thread to offload GNN inference and prevent event loop starvation.
         """
         now = datetime.now()
         
         # 1. Frequency (Synthesize simple noise/dip based on random)
-        # For 'latest', we can't easily rely on 'i' from the loop easily without state.
-        # We'll use a simple random walk or just noise.
         base_freq = 60.0
         # Occasional random dip logic (1% chance per second)
         dip = (random.random() < 0.01)
@@ -519,20 +519,23 @@ class DigitalTwinService:
             except:
                 pass
         
-        # 3. Safe Shift (GNN)
+        # 3. Safe Shift (GNN) - wrapped in to_thread to avoid blocking event loop
         safe_shift = 1200.0
         if dip or (self.therm_state.T_c > 48.0):
              safe_shift = 800.0
              
         if self.gnn and self.gnn.is_ready():
             try:
-                # Lightweight GNN inference for "latest"
-                x_node = torch.zeros(33, 3)
-                x_node[:, 0] = torch.rand(33) * 0.2
-                x_node[:, 1] = x_node[:, 0] * 0.3
-                dc_mw = current_load / 1000.0
-                x_node[17, 0] = float(dc_mw)
-                safe_shift = self.gnn.predict_safe_shift_kw(x_node)
+                # Offload blocking GNN inference to thread pool
+                def _gnn_predict():
+                    x_node = torch.zeros(33, 3)
+                    x_node[:, 0] = torch.rand(33) * 0.2
+                    x_node[:, 1] = x_node[:, 0] * 0.3
+                    dc_mw = current_load / 1000.0
+                    x_node[17, 0] = float(dc_mw)
+                    return self.gnn.predict_safe_shift_kw(x_node)
+                
+                safe_shift = await asyncio.to_thread(_gnn_predict)
             except:
                 pass
 

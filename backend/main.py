@@ -93,7 +93,7 @@ async def simulation_tick_loop():
     svc = get_twin_service()
     while True:
         try:
-            svc.tick(dt_s=1.0)
+            await svc.tick(dt_s=1.0)
         except Exception as e:
             print(f"[SIM LOOP ERROR] {e}")
         await asyncio.sleep(1.0)
