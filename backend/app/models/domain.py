@@ -113,6 +113,12 @@ class KpiSummary(BaseModel):
     # New metrics
     blocked_rate_pct: float = 0.0
     top_blocked_rules: List[str] = Field(default_factory=list)
+    
+    # Financial & Environmental (Simulated)
+    money_saved_usd: float = 0.0
+    co2_avoided_kg: float = 0.0
+    sla_penalty_usd: float = 0.0
+    jobs_completed_on_time_pct: float = 0.0
 
     unsafe_prevented_by_component: Dict[str, int]
     unsafe_prevented_by_rule: Dict[str, int]

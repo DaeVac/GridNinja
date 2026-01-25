@@ -3,9 +3,14 @@
 import React from 'react';
 import { useTelemetryWS } from '@/lib/telemetry/useTelemetryWS';
 import clsx from 'clsx';
-import { Activity, Thermometer, Zap, RefreshCw } from 'lucide-react';
+import { Activity, Thermometer, Zap, RefreshCw, DollarSign, Leaf, ShieldAlert } from 'lucide-react';
 import LogoutButton from '../../components/LogoutButton';
 import dynamic from 'next/dynamic';
+import { KpiGrid } from '../../components/kpi/KpiGrid';
+import { KpiCardProps } from '../../components/kpi/KpiCard';
+
+// Backend API
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
 const GridVisualizer = dynamic(() => import('./GridVisualizer'), {
     ssr: false,
@@ -18,6 +23,71 @@ const ThermalVisualizer3D = dynamic(() => import('./ThermalVisualizer3D'), {
 
 export default function DashboardView({ user }: { user: any }) {
     const { status, latest } = useTelemetryWS();
+    const [kpis, setKpis] = React.useState<KpiCardProps[]>([]);
+    const [loadingKpi, setLoadingKpi] = React.useState(true);
+
+    // Fetch KPIs every 5s
+    React.useEffect(() => {
+        const fetchKpis = async () => {
+            try {
+                const res = await fetch(`${API_BASE}/kpi/summary?window_s=3600`);
+                if (!res.ok) return;
+                const data = await res.json();
+
+                const newKpis: KpiCardProps[] = [
+                    {
+                        title: "Money Saved",
+                        value: data.money_saved_usd,
+                        format: "currency",
+                        decimals: 2,
+                        subtitle: "vs baseline (last 1h)",
+                        status: "allowed",
+                        tone: "good",
+                        icon: <DollarSign size={18} />,
+                    },
+                    {
+                        title: "Carbon Reduced",
+                        value: data.co2_avoided_kg,
+                        format: "co2_kg",
+                        decimals: 1,
+                        subtitle: "avoided emissions",
+                        status: "allowed",
+                        tone: "good",
+                        icon: <Leaf size={18} />,
+                    },
+                    {
+                        title: "Actions Blocked",
+                        value: data.unsafe_actions_prevented_total,
+                        format: "number",
+                        decimals: 0,
+                        subtitle: "safety violations",
+                        status: data.unsafe_actions_prevented_total > 0 ? "blocked" : "neutral",
+                        tone: data.unsafe_actions_prevented_total > 0 ? "bad" : "neutral",
+                        icon: <ShieldAlert size={18} />,
+                    },
+                    {
+                        title: "SLA Penalty Avoided",
+                        value: data.sla_penalty_usd ?? 0,
+                        format: "currency",
+                        decimals: 0,
+                        subtitle: "potential fines",
+                        status: "mixed",
+                        tone: "warn",
+                        icon: <Zap size={18} />,
+                    }
+                ];
+                setKpis(newKpis);
+            } catch (err) {
+                console.error("Failed to fetch KPIs", err);
+            } finally {
+                setLoadingKpi(false);
+            }
+        };
+
+        fetchKpis();
+        const interval = setInterval(fetchKpis, 5000);
+        return () => clearInterval(interval);
+    }, []);
 
     return (
         <div className="flex flex-col min-h-screen bg-gray-50 text-gray-900 font-sans">
@@ -94,7 +164,7 @@ export default function DashboardView({ user }: { user: any }) {
                 </div>
 
                 {/* Right: Thermal Twin */}
-                <div className="flex flex-col gap-4 min-h-[500px] lg:h-full">
+                <div className="flex flex-col gap-4 h-full">
                     <div className="flex items-center justify-between">
                         <h2 className="text-xl font-bold flex items-center gap-2">
                             <Thermometer className="w-5 h-5 text-blue-500" />

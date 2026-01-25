@@ -93,8 +93,13 @@ export default function GridVisualizer({ telemetry }: GridVisualizerProps) {
     useEffect(() => {
         async function fetchTopology() {
             try {
-                const res = await fetch(`${API_BASE}/grid/topology`);
+                // Ensure API_BASE does not have trailing slash to avoid //
+                const cleanBase = API_BASE.replace(/\/+$/, "");
+                const res = await fetch(`${cleanBase}/grid/topology`);
+                if (!res.ok) throw new Error(`Status ${res.status}`);
                 const data = await res.json();
+
+                if (!data || !data.nodes) return; // Guard empty response
 
                 // Transform Nodes
                 const rfNodes: Node[] = data.nodes.map((n: GridTopologyNode) => ({
