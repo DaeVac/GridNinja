@@ -19,7 +19,7 @@ Instead of guessing, we use **Physics-Informed AI** to calculate exactly how muc
 
 ---
 
-## 🧮 Mathematical Model (The "Physics" in Cyber-Physical)
+##  Mathematical Model (The "Physics" in Cyber-Physical)
 
 Unlike standard dashboards, GridNinja solves differential equations in real-time to guarantee safety.
 
