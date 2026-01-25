@@ -43,6 +43,7 @@ interface PredictionResponse {
 }
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+const CLEAN_API_BASE = API_BASE.replace(/\/+$/, ""); // Remove trailing slashes
 
 // --- Custom Node rendering (as a label component) ---
 const NodeIcon = ({ kind, className }: { kind: GridNodeKind; className?: string }) => {
@@ -93,9 +94,7 @@ export default function GridVisualizer({ telemetry }: GridVisualizerProps) {
     useEffect(() => {
         async function fetchTopology() {
             try {
-                // Ensure API_BASE does not have trailing slash to avoid //
-                const cleanBase = API_BASE.replace(/\/+$/, "");
-                const res = await fetch(`${cleanBase}/grid/topology`);
+                const res = await fetch(`${CLEAN_API_BASE}/grid/topology`);
                 if (!res.ok) throw new Error(`Status ${res.status}`);
                 const data = await res.json();
 
@@ -172,7 +171,7 @@ export default function GridVisualizer({ telemetry }: GridVisualizerProps) {
         predAbortRef.current = controller;
 
         try {
-            const res = await fetch(`${API_BASE}/grid/predict?node_id=${node.id}`, {
+            const res = await fetch(`${CLEAN_API_BASE}/grid/predict?node_id=${node.id}`, {
                 signal: controller.signal
             });
             const data = await res.json();

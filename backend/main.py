@@ -12,6 +12,7 @@ from app.api import (
     routes_telemetry,
     routes_trace,
     routes_grid,
+    routes_ws,
 )
 
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -138,6 +139,7 @@ app.include_router(routes_decision.router, prefix="/decision", tags=["Decision"]
 app.include_router(routes_trace.router, prefix="/trace", tags=["Trace"])
 app.include_router(routes_kpi.router, prefix="/kpi", tags=["KPI"])
 app.include_router(routes_grid.router, prefix="/grid", tags=["Grid"])
+app.include_router(routes_ws.router, tags=["WebSocket"])
 
 
 # ============================================================

@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -101,16 +101,14 @@ class GNNConfig:
     max_kw_cap: float = 1500.0  # clamp at backend for UI safety
 
 
+# -------------------------
+# Inference service
+# -------------------------
 class GNNHeadroomService:
     """
     Optional SafeGNN inference wrapper.
     If files are missing or libraries unavailable, returns safe fallback.
     """
-
-# -------------------------
-# Inference service
-# -------------------------
-class GNNHeadroomService:
     def __init__(self, cfg: Optional[GNNConfig] = None, device: Optional[str] = None):
         self.cfg = cfg or GNNConfig()
         self.device = torch.device(device or ("cuda" if torch.cuda.is_available() else "cpu"))
