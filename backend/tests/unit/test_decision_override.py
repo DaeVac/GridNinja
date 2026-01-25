@@ -19,8 +19,13 @@ def test_decision_gnn_override(client: TestClient):
         # Mock decide response
         mock_svc.decide.return_value = {
             "decision_id": "test-uuid",
+            "ts": "2026-01-01T12:00:00",
+            "requested_deltaP_kw": 500.0,
             "approved_deltaP_kw": 0.0,
+            "blocked": False,
+            "reason": "Everything looks good",
             "status": "APPROVED",
+            "plan": {"ramp_rate": 50.0, "steps": []},
             "trace": []
         }
         
@@ -51,8 +56,13 @@ def test_decision_manual_override(client: TestClient):
         
         mock_svc.decide.return_value = {
             "decision_id": "test-uuid",
+            "ts": "2026-01-01T12:00:00",
+            "requested_deltaP_kw": 500.0,
             "approved_deltaP_kw": 0.0,
+            "blocked": False,
+            "reason": "OK",
             "status": "APPROVED",
+            "plan": {"ramp_rate": 50.0, "steps": []},
             "trace": []
         }
         
