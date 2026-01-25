@@ -171,6 +171,12 @@ class DigitalTwinService:
         # Optional services
         self.gnn = gnn
         self.carbon = carbon
+        
+        # Latest telemetry point (for WebSockets)
+        self._latest: Optional[Dict[str, Any]] = None
+
+    def get_latest_telemetry(self) -> Optional[Dict[str, Any]]:
+        return self._latest
 
     # -----------------------------
     # Trace Buffer Access
@@ -478,12 +484,69 @@ class DigitalTwinService:
         # We step the twin forward by dt_s
         twin.step(P_total_kw=current_load, dt_s=dt_s)
         
+        # Update latest telemetry cache
+        self._latest = self._compute_latest_telemetry_point(current_load)
+        
         # self.therm_state is updated in-place by twin.step
         
         # Option: Persist snapshots periodically? 
         # For now, we only persist explicit decisions to keep DB clean.
         
         return self.therm_state
+
+    def _compute_latest_telemetry_point(self, current_load: float) -> Dict[str, Any]:
+        """
+        Computes a single telemetry point for critical real-time monitoring.
+        Mirrors logic in get_timeseries but for 'now'.
+        """
+        now = datetime.now()
+        
+        # 1. Frequency (Synthesize simple noise/dip based on random)
+        # For 'latest', we can't easily rely on 'i' from the loop easily without state.
+        # We'll use a simple random walk or just noise.
+        base_freq = 60.0
+        # Occasional random dip logic (1% chance per second)
+        dip = (random.random() < 0.01)
+        freq = (base_freq - 0.15 + random.uniform(-0.02, 0.02)) if dip else (base_freq + random.uniform(-0.02, 0.02))
+        stress = 0.85 if dip else 0.10
+        rocof = 0.0 # simplified for single point
+        
+        # 2. Carbon
+        carbon_val = 450.0
+        if self.carbon:
+            try:
+                carbon_val = float(self.carbon.get_intensity_g_per_kwh(now))
+            except:
+                pass
+        
+        # 3. Safe Shift (GNN)
+        safe_shift = 1200.0
+        if dip or (self.therm_state.T_c > 48.0):
+             safe_shift = 800.0
+             
+        if self.gnn and self.gnn.is_ready():
+            try:
+                # Lightweight GNN inference for "latest"
+                x_node = torch.zeros(33, 3)
+                x_node[:, 0] = torch.rand(33) * 0.2
+                x_node[:, 1] = x_node[:, 0] * 0.3
+                dc_mw = current_load / 1000.0
+                x_node[17, 0] = float(dc_mw)
+                safe_shift = self.gnn.predict_safe_shift_kw(x_node)
+            except:
+                pass
+
+        return {
+            "ts": now.isoformat(),
+            "frequency_hz": float(freq),
+            "rocof_hz_s": float(rocof),
+            "stress_score": float(stress),
+            "total_load_kw": float(current_load),
+            "safe_shift_kw": float(safe_shift),
+            "carbon_g_per_kwh": float(carbon_val),
+            "rack_temp_c": float(self.therm_state.T_c),
+            "cooling_kw": float(self.therm_state.P_cool_kw),
+        }
     def get_kpi_summary(self, window_s: int = 900) -> Dict[str, Any]:
         events = list(self.trace)
         return compute_trace_kpis(events, window_s=window_s)

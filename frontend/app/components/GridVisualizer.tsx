@@ -13,6 +13,7 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 import { Activity, Zap, Server } from 'lucide-react';
 import clsx from 'clsx';
+import { TelemetryPoint } from '@/lib/telemetry/useTelemetryWS';
 
 // --- Types ---
 type GridNodeKind = 'substation' | 'dc' | 'pv' | 'load';
@@ -69,13 +70,17 @@ const CustomNodeLabel = ({ label, kind, isDc }: { label: string, kind: GridNodeK
     );
 };
 
-export default function GridVisualizer() {
+// --- Props ---
+interface GridVisualizerProps {
+    telemetry: TelemetryPoint | null;
+}
+
+export default function GridVisualizer({ telemetry }: GridVisualizerProps) {
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
     const [selectedNode, setSelectedNode] = useState<string | null>(null);
     const [prediction, setPrediction] = useState<PredictionResponse | null>(null);
-    const [telemetry, setTelemetry] = useState<any>(null);
     const [loadingPred, setLoadingPred] = useState(false);
 
     // Optimization: Only update edges when stress logic flips
@@ -124,46 +129,29 @@ export default function GridVisualizer() {
         fetchTopology();
     }, [setNodes, setEdges]);
 
-    // 2. Telemetry Stream (Optimized)
+    // 2. React to Telemetry (Visual Stress)
     useEffect(() => {
-        const evtSource = new EventSource(`${API_BASE}/telemetry/stream?dt=1.0`);
+        if (!telemetry) return;
 
-        evtSource.onmessage = (event) => {
-            try {
-                const d = JSON.parse(event.data);
-                setTelemetry(d);
+        const isStressNow = telemetry.frequency_hz < 59.95;
 
-                const isStressNow = d.frequency_hz < 59.95;
+        // Only trigger React state update if status logic changed
+        if (isStressNow !== lastStressRef.current) {
+            lastStressRef.current = isStressNow;
 
-                // Only trigger React state update if status logic changed
-                if (isStressNow !== lastStressRef.current) {
-                    lastStressRef.current = isStressNow;
-
-                    setEdges((eds) =>
-                        eds.map((e) => ({
-                            ...e,
-                            animated: isStressNow,
-                            style: {
-                                ...e.style,
-                                stroke: isStressNow ? '#ef4444' : '#999',
-                                strokeWidth: isStressNow ? 3 : 1.5,
-                            }
-                        }))
-                    );
-                }
-            } catch (e) {
-                console.error("Telemetry parse error", e);
-            }
-        };
-
-        evtSource.onerror = () => {
-            // Optional: handle reconnect logic or visual warning
-        };
-
-        return () => {
-            evtSource.close();
-        };
-    }, [setEdges]);
+            setEdges((eds) =>
+                eds.map((e) => ({
+                    ...e,
+                    animated: isStressNow,
+                    style: {
+                        ...e.style,
+                        stroke: isStressNow ? '#ef4444' : '#999',
+                        strokeWidth: isStressNow ? 3 : 1.5,
+                    }
+                }))
+            );
+        }
+    }, [telemetry, setEdges]);
 
     // 3. Node Click -> Prediction (Cancellable)
     const onNodeClick: NodeMouseHandler = useCallback(async (_, node) => {

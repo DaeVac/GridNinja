@@ -7,83 +7,7 @@ import * as THREE from 'three';
 import clsx from 'clsx';
 import { Thermometer, Wind, AlertTriangle } from 'lucide-react';
 
-const RAW_API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
-
-type Telemetry = {
-    rack_temp_c: number;
-    cooling_kw: number;
-    ts?: number;
-};
-
-type StreamStatus = 'connecting' | 'open' | 'error';
-
-function sanitizeBaseUrl(url: string) {
-    // Avoid accidental trailing slashes that can create double-slashes in logs
-    return url.replace(/\/+$/, '');
-}
-
-function useTelemetryStream(apiBase: string) {
-    const [telemetry, setTelemetry] = useState<Telemetry | null>(null);
-    const [status, setStatus] = useState<StreamStatus>('connecting');
-
-    useEffect(() => {
-        let es: EventSource | null = null;
-        let alive = true;
-        let retry = 0;
-
-        const connect = () => {
-            if (!alive) return;
-
-            setStatus('connecting');
-
-            // Safe URL join
-            const url = new URL('/telemetry/stream', apiBase);
-            url.searchParams.set('dt', '1.0');
-
-            es = new EventSource(url.toString());
-
-            es.onopen = () => {
-                retry = 0;
-                setStatus('open');
-            };
-
-            es.onmessage = (event) => {
-                try {
-                    const d = JSON.parse(event.data) as Telemetry;
-                    // Guard against unexpected payloads
-                    if (
-                        typeof d?.rack_temp_c === 'number' &&
-                        typeof d?.cooling_kw === 'number'
-                    ) {
-                        setTelemetry(d);
-                    }
-                } catch {
-                    // Avoid console spam from malformed SSE data bursts
-                }
-            };
-
-            es.onerror = () => {
-                setStatus('error');
-                es?.close();
-                es = null;
-
-                retry += 1;
-                // Exponential backoff with cap
-                const delay = Math.min(5000, 250 * 2 ** retry);
-                window.setTimeout(connect, delay);
-            };
-        };
-
-        connect();
-
-        return () => {
-            alive = false;
-            es?.close();
-        };
-    }, [apiBase]);
-
-    return { telemetry, status };
-}
+import { TelemetryPoint } from '@/lib/telemetry/useTelemetryWS';
 
 function useSmoothedValue(target: number, alpha = 0.18) {
     const [value, setValue] = useState(target);
@@ -219,10 +143,7 @@ function SceneSetup() {
 }
 
 // --- Main Visualizer ---
-export default function ThermalVisualizer3D() {
-    const apiBase = useMemo(() => sanitizeBaseUrl(RAW_API_BASE), []);
-    const { telemetry, status } = useTelemetryStream(apiBase);
-
+export default function ThermalVisualizer3D({ telemetry }: { telemetry: TelemetryPoint | null }) {
     const tempRaw = telemetry?.rack_temp_c ?? 25.0;
     const coolingKwRaw = telemetry?.cooling_kw ?? 0.0;
 
@@ -231,49 +152,33 @@ export default function ThermalVisualizer3D() {
 
     const isHot = tempRaw > 45;
 
+    // NOTE: Status pill logic removed here as it is better handled in the parent Dashboard
+
     return (
-        <div className="w-full h-screen bg-slate-900 relative">
-            <Canvas shadows camera={{ position: [4, 4, 6], fov: 50 }} dpr={[1, 2]}>
+        <div className="w-full h-full relative rounded-lg overflow-hidden border border-gray-700 shadow-xl bg-slate-900">
+            <Canvas shadows camera={{ position: [3, 2.5, 4], fov: 45 }} dpr={[1, 2]}>
                 <SceneSetup />
                 <ServerRack tempC={tempSmooth} />
-                <OrbitControls minPolarAngle={0} maxPolarAngle={Math.PI / 2} />
+                <OrbitControls minPolarAngle={0} maxPolarAngle={Math.PI / 2} enableZoom={true} />
             </Canvas>
 
             {/* HUD Overlay */}
-            <div className="absolute top-6 left-6 space-y-4 pointer-events-none">
-                <div className="flex items-start justify-between gap-4">
-                    <div>
-                        <h1 className="text-2xl font-bold text-white tracking-tight">
-                            Digital Twin: Thermal
-                        </h1>
-                        <p className="text-slate-400 text-sm">Real-time physics simulation</p>
-                    </div>
-
-                    {/* Connection status pill */}
-                    <div
-                        className={clsx(
-                            'px-3 py-1 rounded-full border text-xs font-semibold backdrop-blur',
-                            status === 'open' && 'bg-emerald-500/15 border-emerald-500/40 text-emerald-200',
-                            status === 'connecting' && 'bg-slate-500/15 border-slate-500/30 text-slate-200',
-                            status === 'error' && 'bg-red-500/15 border-red-500/40 text-red-200'
-                        )}
-                    >
-                        {status === 'open' && 'LIVE'}
-                        {status === 'connecting' && 'CONNECTING'}
-                        {status === 'error' && 'RECONNECTING'}
-                    </div>
+            <div className="absolute top-4 left-4 space-y-3 pointer-events-none">
+                <div>
+                    <h1 className="text-xl font-bold text-white tracking-tight drop-shadow-md">
+                        Thermal Twin
+                    </h1>
                 </div>
 
-                <div className="bg-slate-800/80 p-4 rounded-lg border border-slate-700 backdrop-blur">
-                    <div className="flex items-center gap-3 mb-2">
-                        <Wind className="text-blue-400 w-5 h-5" />
-                        <span className="text-slate-200 text-sm font-medium">
-                            Cooling Power
+                <div className="bg-slate-800/60 p-3 rounded-lg border border-slate-700/50 backdrop-blur-md">
+                    <div className="flex items-center gap-2 mb-1">
+                        <Wind className="text-blue-400 w-4 h-4" />
+                        <span className="text-slate-300 text-xs font-medium">
+                            Cooling
                         </span>
                     </div>
-                    <div className="text-2xl font-mono text-white">
-                        {coolingKwRaw.toFixed(1)}{' '}
-                        <span className="text-base text-slate-500">kW</span>
+                    <div className="text-lg font-mono text-white">
+                        {coolingKwRaw.toFixed(1)} <span className="text-xs text-slate-500">kW</span>
                     </div>
                 </div>
 
