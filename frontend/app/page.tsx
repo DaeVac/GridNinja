@@ -1,11 +1,12 @@
-import { auth0 } from "@/lib/auth0";
+// import { auth0 } from "@/lib/auth0";
 import LoginButton from "@/components/LoginButton";
 import LogoutButton from "@/components/LogoutButton";
 import Profile from "@/components/Profile";
 
 export default async function Home() {
-  const session = await auth0.getSession();
-  const user = session?.user;
+  // const session = await auth0.getSession();
+  // const user = session?.user;
+  const user = null;
 
   return (
     <div className="app-container">
@@ -19,7 +20,7 @@ export default async function Home() {
             <source src="/Video Project.mp4" type="video/mp4" />
           </video>
         </div>
-        
+
         <h1 className="main-title">
           Optimize your Power Grid with AI
         </h1>
@@ -27,7 +28,7 @@ export default async function Home() {
       <div className="login-button-container">
         <LoginButton />
       </div>
-      
+
       {/* <div className="main-card-wrapper">
         <img
           src="https://cdn.auth0.com/quantum-assets/dist/latest/logos/auth0/auth0-lockup-en-ondark.png"

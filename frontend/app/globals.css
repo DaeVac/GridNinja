@@ -403,3 +403,59 @@ object-fit: cover;
     @apply bg-background text-foreground;
   }
 }
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e0;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a0aec0;
+}
+
+/* Digital Twin Specific Scrollbar */
+.scrollbar-twin::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-twin::-webkit-scrollbar-track {
+  background: #120805;
+}
+
+.scrollbar-twin::-webkit-scrollbar-thumb {
+  background: #E10600; 
+  border-radius: 3px;
+  background-image: linear-gradient(to bottom, #E10600, #FF5A00);
+}
+
+.scrollbar-twin::-webkit-scrollbar-thumb:hover {
+  background: #FFD400;
+}
+
+/* Mission Control Specific Scrollbar */
+.scrollbar-mission::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-mission::-webkit-scrollbar-track {
+  background: #f7fafc;
+}
+
+.scrollbar-mission::-webkit-scrollbar-thumb {
+  background: #cbd5e0;
+  border-radius: 3px;
+}
+
+.scrollbar-mission::-webkit-scrollbar-thumb:hover {
+  background: #a0aec0;
+}

@@ -98,7 +98,7 @@ export default function DashboardView({ user }: { user: UserProfile }) {
     }, []);
 
     return (
-        <div className="flex flex-col min-h-screen bg-gray-50 text-gray-900 font-sans">
+        <div className="flex flex-col h-screen bg-gray-50 text-gray-900 font-sans">
             {/* --- Header --- */}
             <header className="bg-white border-b px-6 py-4 flex items-center justify-between sticky top-0 z-30 shadow-sm">
                 <div className="flex items-center gap-4">
@@ -162,7 +162,7 @@ export default function DashboardView({ user }: { user: UserProfile }) {
             </header>
 
             {/* --- Main Content --- */}
-            <main className="flex-1 p-6 flex flex-col gap-6 relative overflow-hidden">
+            <main className="flex-1 p-6 flex flex-col gap-6 relative overflow-y-auto scrollbar-mission">
 
                 {/* KPI Section */}
                 <section>

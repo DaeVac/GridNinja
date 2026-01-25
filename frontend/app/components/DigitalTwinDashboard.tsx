@@ -231,292 +231,291 @@ export default function DigitalTwinDashboard() {
                 wsStatus === 'closed' ? 'Offline' : 'WS Error';
 
     return (
-        <div className="min-h-screen bg-black text-slate-100 p-6">
-            {/* Ambient glow effects */}
-            <div className="fixed inset-0 pointer-events-none overflow-hidden">
-                <div className="absolute top-0 right-1/4 w-96 h-96 bg-[#E10600] opacity-10 blur-3xl rounded-full animate-pulse"></div>
-                <div className="absolute bottom-1/4 left-1/4 w-96 h-96 bg-[#FFD400] opacity-5 blur-3xl rounded-full"></div>
-                <div className="absolute top-1/2 left-1/2 w-64 h-64 bg-[#FF5A00] opacity-8 blur-2xl rounded-full"></div>
-            </div>
+        <div className="flex flex-col h-screen bg-black text-slate-100 font-sans overflow-hidden">
+            {/* Header */}
+            <header className="bg-[#120805] border-b border-[#3A1A0A] px-6 py-4 flex items-center justify-between sticky top-0 z-30 shadow-lg">
+                <div className="flex items-center gap-4">
+                    <Flame className="w-8 h-8 text-[#E10600]" style={{ filter: 'drop-shadow(0 0 8px rgba(225, 6, 0, 0.6))' }} />
+                    <div className="h-6 w-px bg-[#3A1A0A]" />
+                    <h1 className="text-2xl font-bold bg-gradient-to-r from-[#FFD400] via-[#FF5A00] to-[#E10600] bg-clip-text text-transparent">
+                        Digital Twin Monitor
+                    </h1>
+                    <div className="h-6 w-px bg-[#3A1A0A]" />
+                    <a
+                        href="/dashboard"
+                        className="px-3 py-1.5 text-sm font-medium text-gray-400 hover:text-white bg-[#1A0B06] hover:bg-[#3A1A0A] rounded-lg transition-colors border border-[#3A1A0A]"
+                    >
+                        ← Mission Control
+                    </a>
+                </div>
 
-            <div className="relative z-10">
-                {/* Header */}
-                <div className="mb-8">
-                    <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-3">
-                            <Flame className="w-8 h-8 text-[#E10600]" style={{ filter: 'drop-shadow(0 0 8px rgba(225, 6, 0, 0.6))' }} />
-                            <h1 className="text-3xl font-bold bg-gradient-to-r from-[#FFD400] via-[#FF5A00] to-[#E10600] bg-clip-text text-transparent">
-                                Digital Twin Monitor
-                            </h1>
-                            <a
-                                href="/dashboard"
-                                className="ml-4 px-3 py-1.5 text-sm font-medium text-gray-300 hover:text-white bg-gray-800/50 hover:bg-gray-700/50 rounded-lg transition-colors border border-gray-600"
+                <div className="flex items-center gap-6">
+                    {/* Time range selector */}
+                    <div className="flex items-center gap-2 bg-[#120805] border border-[#E10600]/30 rounded-full px-2 py-1">
+                        {(['15m', '1h', '6h'] as TimeRangeKey[]).map(r => (
+                            <button
+                                key={r}
+                                onClick={() => setTimeRange(r)}
+                                className={`px-3 py-1 text-xs rounded-full transition ${timeRange === r ? 'bg-[#E10600]/30 text-[#FFE65C]' : 'text-[#7A3A1A] hover:text-[#FFE65C]'
+                                    }`}
                             >
-                                ← Dashboard
-                            </a>
-                        </div>
+                                {r.toUpperCase()}
+                            </button>
+                        ))}
+                    </div>
 
-                        <div className="flex items-center gap-3">
-                            {/* Time range selector */}
-                            <div className="flex items-center gap-2 bg-[#120805] border border-[#E10600]/30 rounded-full px-2 py-1">
-                                {(['15m', '1h', '6h'] as TimeRangeKey[]).map(r => (
-                                    <button
-                                        key={r}
-                                        onClick={() => setTimeRange(r)}
-                                        className={`px-3 py-1 text-xs rounded-full transition ${timeRange === r ? 'bg-[#E10600]/30 text-[#FFE65C]' : 'text-[#7A3A1A] hover:text-[#FFE65C]'
-                                            }`}
+                    {/* Live sync pill */}
+                    <div className="flex items-center gap-2 bg-[#120805] border border-[#E10600]/30 rounded-full px-4 py-2">
+                        <div
+                            className="w-2 h-2 rounded-full bg-[#E10600] transition-all duration-300"
+                            style={{
+                                transform: `scale(${pulseIntensity})`,
+                                boxShadow: `0 0 ${8 * pulseIntensity}px rgba(225, 6, 0, 0.8)`,
+                                opacity: wsStatus === 'open' ? 1 : 0.5,
+                            }}
+                        />
+                        <span className="text-sm text-[#FFE65C]">{liveLabel}</span>
+                    </div>
+                </div>
+            </header>
+
+            {/* Main Content */}
+            <main className="flex-1 p-6 relative overflow-y-auto scrollbar-twin">
+                {/* Ambient glow effects */}
+                <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+                    <div className="absolute top-0 right-1/4 w-96 h-96 bg-[#E10600] opacity-10 blur-3xl rounded-full animate-pulse"></div>
+                    <div className="absolute bottom-1/4 left-1/4 w-96 h-96 bg-[#FFD400] opacity-5 blur-3xl rounded-full"></div>
+                    <div className="absolute top-1/2 left-1/2 w-64 h-64 bg-[#FF5A00] opacity-8 blur-2xl rounded-full"></div>
+                </div>
+
+                <div className="relative z-10 max-w-7xl mx-auto space-y-6">
+
+                    {/* A. PHYSICAL STATE */}
+                    <div>
+                        <h2 className="text-lg font-semibold text-[#E10600] mb-4 flex items-center gap-2">
+                            <Gauge className="w-5 h-5" />
+                            Physical State (Real-time)
+                        </h2>
+
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            {physicalState.map((stat, idx) => {
+                                const Icon = stat.icon;
+                                const col = getStatusColor(stat.status);
+                                return (
+                                    <div
+                                        key={idx}
+                                        className="bg-gradient-to-br from-[#120805] to-[#1A0B06] border rounded-lg p-4 transition-all shadow-lg"
+                                        style={{
+                                            borderColor: `${col}40`,
+                                            boxShadow: `0 0 20px ${col}20`,
+                                        }}
                                     >
-                                        {r.toUpperCase()}
-                                    </button>
-                                ))}
-                            </div>
-
-                            {/* Live sync pill */}
-                            <div className="flex items-center gap-2 bg-[#120805] border border-[#E10600]/30 rounded-full px-4 py-2">
-                                <div
-                                    className="w-2 h-2 rounded-full bg-[#E10600] transition-all duration-300"
-                                    style={{
-                                        transform: `scale(${pulseIntensity})`,
-                                        boxShadow: `0 0 ${8 * pulseIntensity}px rgba(225, 6, 0, 0.8)`,
-                                        opacity: wsStatus === 'open' ? 1 : 0.5,
-                                    }}
-                                />
-                                <span className="text-sm text-[#FFE65C]">{liveLabel}</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <p className="text-[#7A3A1A]">
-                        Real-time monitoring • Carbon impact • Predictive analytics
-                    </p>
-                </div>
-
-                {/* A. PHYSICAL STATE */}
-                <div className="mb-6">
-                    <h2 className="text-lg font-semibold text-[#E10600] mb-4 flex items-center gap-2">
-                        <Gauge className="w-5 h-5" />
-                        Physical State (Real-time)
-                    </h2>
-
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        {physicalState.map((stat, idx) => {
-                            const Icon = stat.icon;
-                            const col = getStatusColor(stat.status);
-                            return (
-                                <div
-                                    key={idx}
-                                    className="bg-gradient-to-br from-[#120805] to-[#1A0B06] border rounded-lg p-4 transition-all shadow-lg"
-                                    style={{
-                                        borderColor: `${col}40`,
-                                        boxShadow: `0 0 20px ${col}20`,
-                                    }}
-                                >
-                                    <div className="flex items-center justify-between mb-2">
-                                        <span className="text-[#7A3A1A] text-sm font-medium">{stat.metric}</span>
-                                        <Icon
-                                            className="w-4 h-4"
-                                            style={{ color: col, filter: `drop-shadow(0 0 4px ${col})` }}
-                                        />
-                                    </div>
-
-                                    <div className="flex items-baseline gap-1">
-                                        <span
-                                            className="text-2xl font-bold"
-                                            style={{ color: col, textShadow: `0 0 10px ${col}60` }}
-                                        >
-                                            {stat.value}
-                                        </span>
-                                        <span className="text-sm text-[#5A2A14]">{stat.unit}</span>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-
-                {/* Flow Rates Chart */}
-                <div className="mb-6 bg-gradient-to-br from-[#120805] to-[#1A0B06] border border-[#3A1A0A] rounded-lg p-6 shadow-xl">
-                    <h3 className="text-lg font-semibold text-[#FFE65C] mb-4">
-                        Cooling vs Load vs Safe Shift
-                    </h3>
-                    <ResponsiveContainer width="100%" height={200}>
-                        <LineChart data={flowRates}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#3A1A0A" />
-                            <XAxis dataKey="time" stroke="#7A3A1A" style={{ fontSize: 12 }} />
-                            <YAxis stroke="#7A3A1A" style={{ fontSize: 12 }} />
-                            <Tooltip
-                                contentStyle={{ backgroundColor: '#120805', border: '1px solid #5A2A14', borderRadius: 8 }}
-                                labelStyle={{ color: '#FFE65C' }}
-                            />
-                            <Legend wrapperStyle={{ fontSize: 12 }} />
-                            <Line type="monotone" dataKey="cooling" stroke="#E10600" strokeWidth={2} dot={false} name="Cooling (kW)" />
-                            <Line type="monotone" dataKey="process" stroke="#FF5A00" strokeWidth={2} dot={false} name="Load (kW)" />
-                            <Line type="monotone" dataKey="return" stroke="#FFD400" strokeWidth={2} dot={false} name="Safe Shift (kW)" />
-                        </LineChart>
-                    </ResponsiveContainer>
-                </div>
-
-                {/* B. DERIVED EFFICIENCY */}
-                <div className="mb-6">
-                    <h2 className="text-lg font-semibold text-[#FF5A00] mb-4 flex items-center gap-2">
-                        <TrendingUp className="w-5 h-5" />
-                        Derived Efficiency (Near Real-time)
-                    </h2>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {efficiencyMetrics.map((metric, idx) => {
-                            const col = getStatusColor(metric.status);
-                            const pct = clamp((metric.value / metric.target) * 100, 0, 100);
-
-                            return (
-                                <div key={idx} className="bg-gradient-to-br from-[#120805] to-[#1A0B06] border border-[#5A2A14] rounded-lg p-4">
-                                    <div className="mb-3">
-                                        <div className="text-sm text-[#7A3A1A] mb-1">{metric.metric}</div>
-                                        <div className="text-2xl font-bold text-[#FFB800]">{metric.value}</div>
-                                        <div className="text-xs text-[#5A2A14]">Target: {metric.target}</div>
-                                    </div>
-
-                                    <div className="w-full bg-[#1A0B06] rounded-full h-1.5">
-                                        <div
-                                            className="h-1.5 rounded-full transition-all duration-700"
-                                            style={{
-                                                width: `${pct}%`,
-                                                backgroundColor: col,
-                                                boxShadow: `0 0 8px ${col}60`,
-                                            }}
-                                        />
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-
-                {/* C. ENVIRONMENTAL IMPACT */}
-                <div className="mb-6">
-                    <h2 className="text-lg font-semibold text-[#FFD400] mb-4 flex items-center gap-2">
-                        <CloudRain className="w-5 h-5" />
-                        Environmental Impact (Strategic)
-                    </h2>
-
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <div className="bg-gradient-to-br from-[#120805] to-[#1A0B06] border border-[#3A1A0A] rounded-lg p-6 shadow-xl">
-                            <h3 className="text-sm font-semibold text-[#FFE65C] mb-4">
-                                Carbon Intensity (gCO₂/kWh)
-                            </h3>
-
-                            <ResponsiveContainer width="100%" height={220}>
-                                <AreaChart data={carbonData}>
-                                    <defs>
-                                        <linearGradient id="carbonGradient" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#FFD400" stopOpacity={0.3} />
-                                            <stop offset="95%" stopColor="#FF5A00" stopOpacity={0} />
-                                        </linearGradient>
-                                    </defs>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#3A1A0A" />
-                                    <XAxis dataKey="time" stroke="#7A3A1A" style={{ fontSize: 12 }} />
-                                    <YAxis stroke="#7A3A1A" style={{ fontSize: 12 }} />
-                                    <Tooltip
-                                        contentStyle={{ backgroundColor: '#120805', border: '1px solid #5A2A14', borderRadius: 8 }}
-                                        labelStyle={{ color: '#FFE65C' }}
-                                    />
-                                    <Area type="monotone" dataKey="intensity" stroke="#FFD400" fill="url(#carbonGradient)" strokeWidth={2} />
-                                </AreaChart>
-                            </ResponsiveContainer>
-
-                            {kpi && (
-                                <div className="mt-4 grid grid-cols-2 gap-3">
-                                    <div className="p-2 bg-[#1A0B06] rounded border border-[#3A1A0A] text-center">
-                                        <div className="text-xs text-[#7A3A1A] mb-1">CO₂ Avoided</div>
-                                        <div className="text-lg font-bold text-[#FFD400]">
-                                            {kpi.co2_avoided_kg.toFixed(1)} <span className="text-xs">kg</span>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="text-[#7A3A1A] text-sm font-medium">{stat.metric}</span>
+                                            <Icon
+                                                className="w-4 h-4"
+                                                style={{ color: col, filter: `drop-shadow(0 0 4px ${col})` }}
+                                            />
                                         </div>
-                                    </div>
-                                    <div className="p-2 bg-[#1A0B06] rounded border border-[#3A1A0A] text-center">
-                                        <div className="text-xs text-[#7A3A1A] mb-1">Money Saved</div>
-                                        <div className="text-lg font-bold text-[#FFB800]">
-                                            ${kpi.money_saved_usd.toFixed(0)}
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
 
-                        <div className="bg-gradient-to-br from-[#120805] to-[#1A0B06] border border-[#3A1A0A] rounded-lg p-6 shadow-xl">
-                            <h3 className="text-sm font-semibold text-[#FFE65C] mb-4">Performance Forecast</h3>
-
-                            <ResponsiveContainer width="100%" height={280}>
-                                <RadarChart data={predictionRadar}>
-                                    <PolarGrid stroke="#3A1A0A" />
-                                    <PolarAngleAxis dataKey="metric" stroke="#7A3A1A" style={{ fontSize: 11 }} />
-                                    <PolarRadiusAxis stroke="#5A2A14" />
-                                    <Radar name="Current" dataKey="current" stroke="#FFD400" fill="#FFD400" fillOpacity={0.3} strokeWidth={2} />
-                                    <Radar name="Forecast" dataKey="forecast" stroke="#E10600" fill="#E10600" fillOpacity={0.2} strokeWidth={2} strokeDasharray="5 5" />
-                                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                                </RadarChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </div>
-                </div>
-
-                {/* D. RISK / PREDICTION */}
-                <div className="mb-6">
-                    <h2 className="text-lg font-semibold text-[#E10600] mb-4 flex items-center gap-2">
-                        <AlertTriangle className="w-5 h-5" />
-                        Risk & Prediction (Forecasting)
-                    </h2>
-
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <div className="bg-gradient-to-br from-[#120805] to-[#1A0B06] border border-[#3A1A0A] rounded-lg p-6 shadow-xl">
-                            <h3 className="text-sm font-semibold text-[#FFE65C] mb-4">Time to Failure (hours)</h3>
-                            <div className="space-y-3">
-                                {riskMetrics.map((risk, idx) => (
-                                    <div key={idx} className="p-3 bg-[#1A0B06] rounded border border-[#3A1A0A]">
-                                        <div className="flex justify-between items-center mb-2">
-                                            <span className="text-sm text-[#FFE65C]">{risk.component}</span>
+                                        <div className="flex items-baseline gap-1">
                                             <span
-                                                className={`text-xs px-2 py-1 rounded ${risk.exceedance > 30
-                                                    ? 'bg-[#E10600]/20 text-[#E10600]'
-                                                    : risk.exceedance > 10
-                                                        ? 'bg-[#FF5A00]/20 text-[#FF5A00]'
-                                                        : 'bg-[#FFD400]/20 text-[#FFD400]'
-                                                    }`}
+                                                className="text-2xl font-bold"
+                                                style={{ color: col, textShadow: `0 0 10px ${col}60` }}
                                             >
-                                                {risk.exceedance}% risk
+                                                {stat.value}
                                             </span>
-                                        </div>
-                                        <div className="flex items-baseline gap-2">
-                                            <span className="text-xl font-bold text-[#FFB800]">{risk.ttf}</span>
-                                            <span className="text-xs text-[#5A2A14]">hrs • {risk.forecast}</span>
+                                            <span className="text-sm text-[#5A2A14]">{stat.unit}</span>
                                         </div>
                                     </div>
-                                ))}
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Flow Rates Chart */}
+                    <div className="bg-gradient-to-br from-[#120805] to-[#1A0B06] border border-[#3A1A0A] rounded-lg p-6 shadow-xl">
+                        <h3 className="text-lg font-semibold text-[#FFE65C] mb-4">
+                            Cooling vs Load vs Safe Shift
+                        </h3>
+                        <ResponsiveContainer width="100%" height={240}>
+                            <LineChart data={flowRates}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#3A1A0A" />
+                                <XAxis dataKey="time" stroke="#7A3A1A" style={{ fontSize: 12 }} />
+                                <YAxis stroke="#7A3A1A" style={{ fontSize: 12 }} />
+                                <Tooltip
+                                    contentStyle={{ backgroundColor: '#120805', border: '1px solid #5A2A14', borderRadius: 8 }}
+                                    labelStyle={{ color: '#FFE65C' }}
+                                />
+                                <Legend wrapperStyle={{ fontSize: 12 }} />
+                                <Line type="monotone" dataKey="cooling" stroke="#E10600" strokeWidth={2} dot={false} name="Cooling (kW)" />
+                                <Line type="monotone" dataKey="process" stroke="#FF5A00" strokeWidth={2} dot={false} name="Load (kW)" />
+                                <Line type="monotone" dataKey="return" stroke="#FFD400" strokeWidth={2} dot={false} name="Safe Shift (kW)" />
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </div>
+
+                    {/* B. DERIVED EFFICIENCY */}
+                    <div>
+                        <h2 className="text-lg font-semibold text-[#FF5A00] mb-4 flex items-center gap-2">
+                            <TrendingUp className="w-5 h-5" />
+                            Derived Efficiency (Near Real-time)
+                        </h2>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            {efficiencyMetrics.map((metric, idx) => {
+                                const col = getStatusColor(metric.status);
+                                const pct = clamp((metric.value / metric.target) * 100, 0, 100);
+
+                                return (
+                                    <div key={idx} className="bg-gradient-to-br from-[#120805] to-[#1A0B06] border border-[#5A2A14] rounded-lg p-4">
+                                        <div className="mb-3">
+                                            <div className="text-sm text-[#7A3A1A] mb-1">{metric.metric}</div>
+                                            <div className="text-2xl font-bold text-[#FFB800]">{metric.value}</div>
+                                            <div className="text-xs text-[#5A2A14]">Target: {metric.target}</div>
+                                        </div>
+
+                                        <div className="w-full bg-[#1A0B06] rounded-full h-1.5">
+                                            <div
+                                                className="h-1.5 rounded-full transition-all duration-700"
+                                                style={{
+                                                    width: `${pct}%`,
+                                                    backgroundColor: col,
+                                                    boxShadow: `0 0 8px ${col}60`,
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* C. ENVIRONMENTAL IMPACT */}
+                    <div>
+                        <h2 className="text-lg font-semibold text-[#FFD400] mb-4 flex items-center gap-2">
+                            <CloudRain className="w-5 h-5" />
+                            Environmental Impact (Strategic)
+                        </h2>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div className="bg-gradient-to-br from-[#120805] to-[#1A0B06] border border-[#3A1A0A] rounded-lg p-6 shadow-xl">
+                                <h3 className="text-sm font-semibold text-[#FFE65C] mb-4">
+                                    Carbon Intensity (gCO₂/kWh)
+                                </h3>
+
+                                <ResponsiveContainer width="100%" height={220}>
+                                    <AreaChart data={carbonData}>
+                                        <defs>
+                                            <linearGradient id="carbonGradient" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="#FFD400" stopOpacity={0.3} />
+                                                <stop offset="95%" stopColor="#FF5A00" stopOpacity={0} />
+                                            </linearGradient>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#3A1A0A" />
+                                        <XAxis dataKey="time" stroke="#7A3A1A" style={{ fontSize: 12 }} />
+                                        <YAxis stroke="#7A3A1A" style={{ fontSize: 12 }} />
+                                        <Tooltip
+                                            contentStyle={{ backgroundColor: '#120805', border: '1px solid #5A2A14', borderRadius: 8 }}
+                                            labelStyle={{ color: '#FFE65C' }}
+                                        />
+                                        <Area type="monotone" dataKey="intensity" stroke="#FFD400" fill="url(#carbonGradient)" strokeWidth={2} />
+                                    </AreaChart>
+                                </ResponsiveContainer>
+
+                                {kpi && (
+                                    <div className="mt-4 grid grid-cols-2 gap-3">
+                                        <div className="p-2 bg-[#1A0B06] rounded border border-[#3A1A0A] text-center">
+                                            <div className="text-xs text-[#7A3A1A] mb-1">CO₂ Avoided</div>
+                                            <div className="text-lg font-bold text-[#FFD400]">
+                                                {kpi.co2_avoided_kg.toFixed(1)} <span className="text-xs">kg</span>
+                                            </div>
+                                        </div>
+                                        <div className="p-2 bg-[#1A0B06] rounded border border-[#3A1A0A] text-center">
+                                            <div className="text-xs text-[#7A3A1A] mb-1">Money Saved</div>
+                                            <div className="text-lg font-bold text-[#FFB800]">
+                                                ${kpi.money_saved_usd.toFixed(0)}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="bg-gradient-to-br from-[#120805] to-[#1A0B06] border border-[#3A1A0A] rounded-lg p-6 shadow-xl">
+                                <h3 className="text-sm font-semibold text-[#FFE65C] mb-4">Performance Forecast</h3>
+
+                                <ResponsiveContainer width="100%" height={280}>
+                                    <RadarChart data={predictionRadar}>
+                                        <PolarGrid stroke="#3A1A0A" />
+                                        <PolarAngleAxis dataKey="metric" stroke="#7A3A1A" style={{ fontSize: 11 }} />
+                                        <PolarRadiusAxis stroke="#5A2A14" />
+                                        <Radar name="Current" dataKey="current" stroke="#FFD400" fill="#FFD400" fillOpacity={0.3} strokeWidth={2} />
+                                        <Radar name="Forecast" dataKey="forecast" stroke="#E10600" fill="#E10600" fillOpacity={0.2} strokeWidth={2} strokeDasharray="5 5" />
+                                        <Legend wrapperStyle={{ fontSize: 12 }} />
+                                    </RadarChart>
+                                </ResponsiveContainer>
                             </div>
                         </div>
+                    </div>
 
-                        {/* System Advisory */}
-                        <div className="bg-gradient-to-r from-[#E10600]/10 to-[#FF5A00]/10 border border-[#E10600]/40 rounded-lg p-6 shadow-lg">
-                            <div className="flex items-start gap-3">
-                                <AlertTriangle className="w-5 h-5 text-[#FFD400] flex-shrink-0 mt-0.5" style={{ filter: 'drop-shadow(0 0 6px rgba(255, 212, 0, 0.6))' }} />
-                                <div>
-                                    <h3 className="font-semibold text-[#FFB800] mb-1">System Advisory</h3>
-                                    <p className="text-sm text-[#FFE65C]">
-                                        Safe shift headroom is{' '}
-                                        <span className="font-mono">{(latest?.safe_shift_kw ?? 0).toFixed(0)} kW</span>.{' '}
-                                        If this drops under 900 kW, throttle workload shifting.
-                                    </p>
-                                    {kpi && (
-                                        <p className="text-xs text-[#7A3A1A] mt-3">
-                                            Blocked rate: {kpi.blocked_rate_pct.toFixed(1)}% • On-time jobs: {kpi.jobs_completed_on_time_pct.toFixed(1)}%
+                    {/* D. RISK / PREDICTION */}
+                    <div>
+                        <h2 className="text-lg font-semibold text-[#E10600] mb-4 flex items-center gap-2">
+                            <AlertTriangle className="w-5 h-5" />
+                            Risk & Prediction (Forecasting)
+                        </h2>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div className="bg-gradient-to-br from-[#120805] to-[#1A0B06] border border-[#3A1A0A] rounded-lg p-6 shadow-xl">
+                                <h3 className="text-sm font-semibold text-[#FFE65C] mb-4">Time to Failure (hours)</h3>
+                                <div className="space-y-3">
+                                    {riskMetrics.map((risk, idx) => (
+                                        <div key={idx} className="p-3 bg-[#1A0B06] rounded border border-[#3A1A0A]">
+                                            <div className="flex justify-between items-center mb-2">
+                                                <span className="text-sm text-[#FFE65C]">{risk.component}</span>
+                                                <span
+                                                    className={`text-xs px-2 py-1 rounded ${risk.exceedance > 30
+                                                        ? 'bg-[#E10600]/20 text-[#E10600]'
+                                                        : risk.exceedance > 10
+                                                            ? 'bg-[#FF5A00]/20 text-[#FF5A00]'
+                                                            : 'bg-[#FFD400]/20 text-[#FFD400]'
+                                                        }`}
+                                                >
+                                                    {risk.exceedance}% risk
+                                                </span>
+                                            </div>
+                                            <div className="flex items-baseline gap-2">
+                                                <span className="text-xl font-bold text-[#FFB800]">{risk.ttf}</span>
+                                                <span className="text-xs text-[#5A2A14]">hrs • {risk.forecast}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* System Advisory */}
+                            <div className="bg-gradient-to-r from-[#E10600]/10 to-[#FF5A00]/10 border border-[#E10600]/40 rounded-lg p-6 shadow-lg">
+                                <div className="flex items-start gap-3">
+                                    <AlertTriangle className="w-5 h-5 text-[#FFD400] flex-shrink-0 mt-0.5" style={{ filter: 'drop-shadow(0 0 6px rgba(255, 212, 0, 0.6))' }} />
+                                    <div>
+                                        <h3 className="font-semibold text-[#FFB800] mb-1">System Advisory</h3>
+                                        <p className="text-sm text-[#FFE65C]">
+                                            Safe shift headroom is{' '}
+                                            <span className="font-mono">{(latest?.safe_shift_kw ?? 0).toFixed(0)} kW</span>.{' '}
+                                            If this drops under 900 kW, throttle workload shifting.
                                         </p>
-                                    )}
+                                        {kpi && (
+                                            <p className="text-xs text-[#7A3A1A] mt-3">
+                                                Blocked rate: {kpi.blocked_rate_pct.toFixed(1)}% • On-time jobs: {kpi.jobs_completed_on_time_pct.toFixed(1)}%
+                                            </p>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
-
-            </div>
+            </main>
         </div>
     );
 }
