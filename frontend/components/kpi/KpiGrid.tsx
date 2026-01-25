@@ -12,12 +12,12 @@ type KpiGridProps = {
 export function KpiGrid({ items, isLoading, columns = 3 }: KpiGridProps) {
   return (
     <div
-      className="flex flex-wrap gap-6 p-6 mt-600"
+      className="flex flex-wrap gap-6 p-6"
       role="region"
       aria-label="KPI metrics dashboard"
     >
       {items.map((kpi, idx) => (
-        <div 
+        <div
           key={kpi.title || idx}
           className="flex-1 min-w-[280px] max-w-[340px]"
         >

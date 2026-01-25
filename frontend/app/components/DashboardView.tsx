@@ -21,7 +21,15 @@ const ThermalVisualizer3D = dynamic(() => import('./ThermalVisualizer3D'), {
     loading: () => <div className="h-full w-full flex items-center justify-center bg-slate-900 text-slate-500 text-xs">Loading 3D Engine...</div>
 });
 
-export default function DashboardView({ user }: { user: any }) {
+// User Profile type (compatible with Auth0 User)
+interface UserProfile {
+    name?: string;
+    picture?: string;
+    email?: string;
+}
+
+
+export default function DashboardView({ user }: { user: UserProfile }) {
     const { status, latest } = useTelemetryWS();
     const [kpis, setKpis] = React.useState<KpiCardProps[]>([]);
     const [loadingKpi, setLoadingKpi] = React.useState(true);
