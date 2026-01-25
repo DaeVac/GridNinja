@@ -105,6 +105,13 @@ export default function DashboardView({ user }: { user: UserProfile }) {
                     <img src="/teamName.svg" alt="GridNinja" className="h-8" />
                     <div className="h-6 w-px bg-gray-200" />
                     <h1 className="text-lg font-semibold text-gray-700">Mission Control</h1>
+                    <div className="h-6 w-px bg-gray-200" />
+                    <a
+                        href="/digital-twin"
+                        className="px-3 py-1.5 text-sm font-medium text-amber-600 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 rounded-lg transition-colors border border-amber-200"
+                    >
+                        Digital Twin →
+                    </a>
                 </div>
 
                 <div className="flex items-center gap-6">

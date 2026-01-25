@@ -248,6 +248,12 @@ export default function DigitalTwinDashboard() {
                             <h1 className="text-3xl font-bold bg-gradient-to-r from-[#FFD400] via-[#FF5A00] to-[#E10600] bg-clip-text text-transparent">
                                 Digital Twin Monitor
                             </h1>
+                            <a
+                                href="/dashboard"
+                                className="ml-4 px-3 py-1.5 text-sm font-medium text-gray-300 hover:text-white bg-gray-800/50 hover:bg-gray-700/50 rounded-lg transition-colors border border-gray-600"
+                            >
+                                ← Dashboard
+                            </a>
                         </div>
 
                         <div className="flex items-center gap-3">
@@ -470,10 +476,10 @@ export default function DigitalTwinDashboard() {
                                             <span className="text-sm text-[#FFE65C]">{risk.component}</span>
                                             <span
                                                 className={`text-xs px-2 py-1 rounded ${risk.exceedance > 30
-                                                        ? 'bg-[#E10600]/20 text-[#E10600]'
-                                                        : risk.exceedance > 10
-                                                            ? 'bg-[#FF5A00]/20 text-[#FF5A00]'
-                                                            : 'bg-[#FFD400]/20 text-[#FFD400]'
+                                                    ? 'bg-[#E10600]/20 text-[#E10600]'
+                                                    : risk.exceedance > 10
+                                                        ? 'bg-[#FF5A00]/20 text-[#FF5A00]'
+                                                        : 'bg-[#FFD400]/20 text-[#FFD400]'
                                                     }`}
                                             >
                                                 {risk.exceedance}% risk
