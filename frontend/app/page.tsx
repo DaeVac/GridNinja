@@ -1,12 +1,10 @@
-// import { auth0 } from "@/lib/auth0";
+import { auth0 } from "@/lib/auth0";
 import LoginButton from "@/components/LoginButton";
 import LogoutButton from "@/components/LogoutButton";
-import Profile from "@/components/Profile";
 
 export default async function Home() {
-  // const session = await auth0.getSession();
-  // const user = session?.user;
-  const user = null;
+  const session = await auth0.getSession();
+  const user = session?.user;
 
   return (
     <div className="app-container">
@@ -26,7 +24,7 @@ export default async function Home() {
         </h1>
       </div>
       <div className="login-button-container">
-        <LoginButton />
+        {user ? <LogoutButton /> : <LoginButton />}
       </div>
 
       {/* <div className="main-card-wrapper">

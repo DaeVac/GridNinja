@@ -1,16 +1,13 @@
-'use client';
+import { redirect } from "next/navigation";
+import { auth0, hasAuth0Config } from "@/lib/auth0";
+import DigitalTwinDashboard from "../components/DigitalTwinDashboard";
 
-import dynamic from 'next/dynamic';
+export default async function Page() {
+  const session = await auth0.getSession();
 
-const DigitalTwinDashboard = dynamic(() => import('../components/DigitalTwinDashboard'), {
-    ssr: false,
-    loading: () => (
-        <div className="min-h-screen bg-black flex items-center justify-center">
-            <div className="text-amber-400 text-xl animate-pulse">Loading Digital Twin...</div>
-        </div>
-    ),
-});
+  if (hasAuth0Config && !session?.user) {
+    redirect("/");
+  }
 
-export default function Page() {
-    return <DigitalTwinDashboard />;
+  return <DigitalTwinDashboard />;
 }

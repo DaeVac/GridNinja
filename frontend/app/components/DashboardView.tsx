@@ -12,6 +12,49 @@ import { KpiCardProps } from '../../components/kpi/KpiCard';
 // Backend API
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
+const DEMO_KPIS: KpiCardProps[] = [
+    {
+        title: "Money Saved",
+        value: 18432.75,
+        format: "currency",
+        decimals: 2,
+        subtitle: "vs baseline (last 1h)",
+        status: "allowed",
+        tone: "good",
+        icon: <DollarSign size={18} />,
+    },
+    {
+        title: "Carbon Reduced",
+        value: 1268.4,
+        format: "co2_kg",
+        decimals: 1,
+        subtitle: "avoided emissions",
+        status: "allowed",
+        tone: "good",
+        icon: <Leaf size={18} />,
+    },
+    {
+        title: "Actions Blocked",
+        value: 7,
+        format: "number",
+        decimals: 0,
+        subtitle: "safety violations",
+        status: "blocked",
+        tone: "bad",
+        icon: <ShieldAlert size={18} />,
+    },
+    {
+        title: "SLA Penalty Avoided",
+        value: 3200,
+        format: "currency",
+        decimals: 0,
+        subtitle: "potential fines",
+        status: "mixed",
+        tone: "warn",
+        icon: <Zap size={18} />,
+    },
+];
+
 const GridVisualizer = dynamic(() => import('./GridVisualizer'), {
     ssr: false,
     loading: () => <div className="h-full w-full flex items-center justify-center bg-gray-50 text-gray-400 text-xs">Loading Grid...</div>
@@ -31,8 +74,8 @@ interface UserProfile {
 
 export default function DashboardView({ user }: { user: UserProfile }) {
     const { status, latest } = useTelemetryWS();
-    const [kpis, setKpis] = React.useState<KpiCardProps[]>([]);
-    const [loadingKpi, setLoadingKpi] = React.useState(true);
+    const [kpis, setKpis] = React.useState<KpiCardProps[]>(DEMO_KPIS);
+    const [loadingKpi, setLoadingKpi] = React.useState(false);
 
     // Fetch KPIs every 5s
     React.useEffect(() => {
@@ -84,9 +127,16 @@ export default function DashboardView({ user }: { user: UserProfile }) {
                         icon: <Zap size={18} />,
                     }
                 ];
-                setKpis(newKpis);
+                const hasLiveData = [
+                    data.money_saved_usd,
+                    data.co2_avoided_kg,
+                    data.unsafe_actions_prevented_total,
+                    data.sla_penalty_usd ?? 0,
+                ].some((value) => Number.isFinite(value) && value !== 0);
+                setKpis(hasLiveData ? newKpis : DEMO_KPIS);
             } catch (err) {
                 console.error("Failed to fetch KPIs", err);
+                setKpis(DEMO_KPIS);
             } finally {
                 setLoadingKpi(false);
             }
@@ -98,26 +148,26 @@ export default function DashboardView({ user }: { user: UserProfile }) {
     }, []);
 
     return (
-        <div className="flex flex-col h-screen bg-gray-50 text-gray-900 font-sans">
+        <div className="flex flex-col h-screen w-full bg-gray-50 text-gray-900 font-sans">
             {/* --- Header --- */}
-            <header className="bg-white border-b px-6 py-4 flex items-center justify-between sticky top-0 z-30 shadow-sm">
-                <div className="flex items-center gap-4">
+            <header className="bg-white border-b px-4 py-4 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-30 shadow-sm">
+                <div className="flex flex-wrap items-center gap-4">
                     <img src="/teamName.svg" alt="GridNinja" className="h-8" />
-                    <div className="h-6 w-px bg-gray-200" />
+                    <div className="hidden sm:block h-6 w-px bg-gray-200" />
                     <h1 className="text-lg font-semibold text-gray-700">Mission Control</h1>
-                    <div className="h-6 w-px bg-gray-200" />
+                    <div className="hidden sm:block h-6 w-px bg-gray-200" />
                     <a
                         href="/digital-twin"
-                        className="px-3 py-1.5 text-sm font-medium text-amber-600 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 rounded-lg transition-colors border border-amber-200"
+                        className="button login"
                     >
-                        Digital Twin →
+                        Digital Twin {"->"}
                     </a>
                 </div>
 
-                <div className="flex items-center gap-6">
+                <div className="flex flex-wrap items-center justify-end gap-4 lg:gap-6 ml-auto">
                     {/* Live Telemetry Pill */}
                     <div className="flex items-center gap-3 bg-gray-100 px-3 py-1.5 rounded-full border border-gray-200">
-                        <div className="flex items-center gap-2 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <div className="flex items-center gap-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                             <Activity className="w-3.5 h-3.5" />
                             System Status
                         </div>
@@ -137,18 +187,18 @@ export default function DashboardView({ user }: { user: UserProfile }) {
                         <div className="hidden md:flex items-center gap-6 text-sm">
                             <div className="flex flex-col items-end leading-tight">
                                 <span className="text-xs text-gray-400 font-medium">Frequency</span>
-                                <span className={clsx("font-mono font-bold", latest.frequency_hz < 59.95 ? "text-red-600" : "text-gray-700")}>
+                                <span className={clsx("font-bold", latest.frequency_hz < 59.95 ? "text-red-600" : "text-gray-700")}>
                                     {latest.frequency_hz.toFixed(3)} Hz
                                 </span>
                             </div>
                             <div className="flex flex-col items-end leading-tight">
                                 <span className="text-xs text-gray-400 font-medium">Total Load</span>
-                                <span className="font-mono font-bold text-gray-700">{latest.total_load_kw.toFixed(0)} kW</span>
+                                <span className="font-bold text-gray-700">{latest.total_load_kw.toFixed(0)} kW</span>
                             </div>
                         </div>
                     )}
 
-                    <div className="h-6 w-px bg-gray-200" />
+                    <div className="hidden sm:block h-6 w-px bg-gray-200" />
 
                     <div className="flex items-center gap-3">
                         <div className="text-right hidden sm:block">
@@ -162,7 +212,7 @@ export default function DashboardView({ user }: { user: UserProfile }) {
             </header>
 
             {/* --- Main Content --- */}
-            <main className="flex-1 p-6 flex flex-col gap-6 relative overflow-y-auto scrollbar-mission">
+            <main className="flex-1 min-h-0 p-4 sm:p-6 flex flex-col gap-6 relative overflow-y-auto scrollbar-mission">
 
                 {/* KPI Section */}
                 <section>
@@ -207,3 +257,4 @@ export default function DashboardView({ user }: { user: UserProfile }) {
         </div>
     );
 }
+

@@ -231,25 +231,25 @@ export default function DigitalTwinDashboard() {
                 wsStatus === 'closed' ? 'Offline' : 'WS Error';
 
     return (
-        <div className="flex flex-col h-screen bg-black text-slate-100 font-sans overflow-hidden">
+        <div className="flex flex-col h-screen w-full bg-black text-slate-100 font-sans overflow-hidden">
             {/* Header */}
-            <header className="bg-[#120805] border-b border-[#3A1A0A] px-6 py-4 flex items-center justify-between sticky top-0 z-30 shadow-lg">
-                <div className="flex items-center gap-4">
+            <header className="bg-[#120805] border-b border-[#3A1A0A] px-4 py-4 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between sticky top-0 z-30 shadow-lg">
+                <div className="flex flex-wrap items-center gap-4">
                     <Flame className="w-8 h-8 text-[#E10600]" style={{ filter: 'drop-shadow(0 0 8px rgba(225, 6, 0, 0.6))' }} />
-                    <div className="h-6 w-px bg-[#3A1A0A]" />
-                    <h1 className="text-2xl font-bold bg-gradient-to-r from-[#FFD400] via-[#FF5A00] to-[#E10600] bg-clip-text text-transparent">
+                    <div className="hidden sm:block h-6 w-px bg-[#3A1A0A]" />
+                    <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-[#FFD400] via-[#FF5A00] to-[#E10600] bg-clip-text text-transparent">
                         Digital Twin Monitor
                     </h1>
-                    <div className="h-6 w-px bg-[#3A1A0A]" />
+                    <div className="hidden sm:block h-6 w-px bg-[#3A1A0A]" />
                     <a
                         href="/dashboard"
-                        className="px-3 py-1.5 text-sm font-medium text-gray-400 hover:text-white bg-[#1A0B06] hover:bg-[#3A1A0A] rounded-lg transition-colors border border-[#3A1A0A]"
+                        className="button logout"
                     >
-                        ← Mission Control
+                        {"<-"} Mission Control
                     </a>
                 </div>
 
-                <div className="flex items-center gap-6">
+                <div className="flex flex-wrap items-center gap-4">
                     {/* Time range selector */}
                     <div className="flex items-center gap-2 bg-[#120805] border border-[#E10600]/30 rounded-full px-2 py-1">
                         {(['15m', '1h', '6h'] as TimeRangeKey[]).map(r => (
@@ -280,7 +280,7 @@ export default function DigitalTwinDashboard() {
             </header>
 
             {/* Main Content */}
-            <main className="flex-1 p-6 relative overflow-y-auto scrollbar-twin">
+            <main className="flex-1 min-h-0 p-4 sm:p-6 relative overflow-y-auto scrollbar-twin">
                 {/* Ambient glow effects */}
                 <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
                     <div className="absolute top-0 right-1/4 w-96 h-96 bg-[#E10600] opacity-10 blur-3xl rounded-full animate-pulse"></div>
@@ -519,3 +519,4 @@ export default function DigitalTwinDashboard() {
         </div>
     );
 }
+
