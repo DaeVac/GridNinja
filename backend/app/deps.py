@@ -1,4 +1,20 @@
 # apps/backend/app/deps.py
+"""
+deps.py
+
+Purpose:
+  Dependency Injection (DI) container for the application.
+  Manages singleton instances of core services to ensure state persistence across requests.
+
+Services Managed:
+  - `DigitalTwinService` (The Physics Engine State)
+  - `CarbonService` (Environmental Data)
+  - `ComparisonService` (if active)
+
+Pattern:
+  - Uses `lru_cache` to enforce Singleton pattern for `get_twin_service()`.
+  - Allowing easy mocking in tests by overriding `app.dependency_overrides`.
+"""
 from __future__ import annotations
 
 from functools import lru_cache

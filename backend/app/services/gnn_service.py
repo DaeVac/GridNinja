@@ -1,4 +1,24 @@
 # apps/backend/app/services/gnn_service.py
+"""
+gnn_service.py
+
+Purpose:
+  Wraps the PyTorch Geometric (PyG) model for safe load headroom prediction.
+  Converts raw grid state into tensor inputs, runs inference, and denormalizes outputs.
+
+Model Inputs (Node Features):
+  - [P_load (kW), Q_load (kVar), V_mag (pu), Generation_Capacity (kW)]
+  - Normalized using statistics from `node_stats.json`.
+
+Model Outputs:
+  - **Safe_Delta_P (kW)**: The maximum additional active power that can be drawn
+    at the target node without causing voltage violations (<0.9 pu) or line overloads.
+
+Key Assumptions:
+  - **Masking**: A binary mask channel indicates the "target node" for the query.
+  - **Normalization**: Training data was normalized; inference inputs MUST match this scale.
+  - **Topology**: Assumes fixed IEEE-33 structure logic (adjacencies don't change).
+"""
 from __future__ import annotations
 
 import os

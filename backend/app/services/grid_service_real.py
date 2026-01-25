@@ -1,3 +1,18 @@
+"""
+grid_service_real.py
+
+Purpose:
+  Provides IEEE-33 bus topology (via pandapower) and SafeGNN headroom inference.
+
+Key assumptions:
+  - Bus labels are 1..33 (frontend), internal indices are 0..32 (pandapower/torch).
+  - SafeGNN output is max safe additional load ΔP at a selected bus (kW).
+  - DC bus default is 18 unless configured.
+
+Primary endpoints that depend on this module:
+  - GET /grid/topology
+  - GET /grid/predict
+"""
 from __future__ import annotations
 
 import os

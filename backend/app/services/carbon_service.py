@@ -1,4 +1,22 @@
 # apps/backend/app/services/carbon_service.py
+"""
+carbon_service.py
+
+Purpose:
+  Simulates a deterministic Grid Carbon Intensity signal (gCO2e/kWh) and Pricing ($/kWh).
+  Used for "Clean Shifting" logic in the compare service.
+
+Math/Sim:
+  - **Intensity**: Sinusoidal daily curve (lowest at 3am, highest at 6pm).
+  - **Pricing**: Time-of-Use (TOU) step function + noise.
+
+Units:
+  - **Carbon Intensity**: grams CO2 equivalent per kWh (g/kWh)
+  - **Price**: USD per kWh ($/kWh)
+
+Future Work:
+  - Replace `random.uniform` and `math.sin` with live API calls to WattTime or ElectricityMaps.
+"""
 from __future__ import annotations
 
 import math

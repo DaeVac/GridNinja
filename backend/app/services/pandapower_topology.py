@@ -1,3 +1,20 @@
+"""
+pandapower_topology.py
+
+Purpose:
+  Provides the "Ground Truth" physical grid layout using the `pandapower` library.
+  It maps the standard IEEE-33 radial distribution definition to a graph structure (Nodes/Edges).
+
+Key Mappings:
+  - **Bus Labels**: Frontend uses 1-based indexing (1..33). Pandapower internal indices are 0..32.
+    This module handles the translation transparently.
+  - **Resistance/Reactance (R/X)**: Computed from line length (km) * specific impedance (ohm/km).
+
+Layout Algorithm:
+  - Uses a **Breadth-First Search (BFS)** starting from the substation (Bus 1) to determine
+    depth levels. This ensures a stable, consistent tree visualization regardless of specific
+    branch ordering in the file.
+"""
 from __future__ import annotations
 
 from collections import deque, defaultdict

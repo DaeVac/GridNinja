@@ -62,6 +62,27 @@ class StructuredLoggerMiddleware(BaseHTTPMiddleware):
 from app.models.db import create_db_and_tables
 from app.deps import get_twin_service
 import asyncio
+"""
+main.py
+
+Purpose:
+  Application entrypoint. Bootstraps the FastAPI application, dependency injection container,
+  and background tasks.
+
+Lifecycle:
+  - **Startup**: Initializes the global `DigitalTwinService` and `PandapowerTopology`.
+  - **Shutdown**: Cleanly closes threads and database connections (if any).
+
+Routes:
+  - `/decision`: Core decision logic.
+  - `/grid`: Topology and ML inference.
+  - `/telemetry`: Live streaming (SSE).
+  - `/health`: Liveness probes.
+
+Environment:
+  - `PORT`: Server port (default 8000).
+  - `DEBUG`: Enable verbose logging.
+"""
 from contextlib import asynccontextmanager
 
 async def simulation_tick_loop():

@@ -1,3 +1,21 @@
+"""
+digital_twin.py
+
+Purpose:
+  Orchestrates the digital twin simulation, managing the state of the data center,
+  executing physics steps, and applying policy decisions. It serves as the
+  "engine room" that connects telemetry, physics, and decision-making logic.
+
+Key Responsibilities:
+  - **State Management**: Maintains the current thermal, power, and battery state.
+  - **Simulation**: Advances the physics model in discrete time steps (`dt_s`).
+  - **Telemetry Generation**: Produces live or replayed telemetry data for the frontend.
+  - **Decision Integration**: Calls the `PolicyEngine` to validate requests and the `GNNService` (optional) for grid awareness.
+
+Flow:
+  1. `tick()`: Advances time, updates physics (`ThermalTwin`), and emits telemetry.
+  2. `decide()`: Takes a load shift request, fuses constraints (Grid, Thermal, Policy), and returns an approved plan.
+"""
 from __future__ import annotations
 
 import math

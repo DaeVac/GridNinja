@@ -1,3 +1,29 @@
+"""
+physics_engine.py
+
+Purpose:
+  Contains the core physical formulas and first-principles models for the data center.
+  It calculates thermal dynamics, cooling power, and battery degradation.
+
+Governing Equations:
+  - **Newton's Law of Cooling**: `dT/dt = -K * (T - T_ambient) + Heat_Input / C_mass`
+  - **Power-to-Heat**: Assumes 100% of server power (`P_it`) converts to heat.
+  - **Cooling Power**: Modeled as `P_cool = f(P_remove, Efficiency)`.
+
+Units & Conventions:
+  - **Power**: Kilowatts (kW)
+  - **Temperature**: Degrees Celsius (°C)
+  - **Time**: Seconds (s)
+  - **Mass/Capacity**: kJ/°C (thermal mass)
+
+Simplified vs. Realistic:
+  - **Simplified**: Lumped capacitance model (one "T_rack" for the whole row).
+  - **Realistic**: Includes coolant specific heat, flow rate dynamics, and efficiency curves.
+
+Safety Thresholds:
+  - `T_max`: Absolute maximum safe temperature (default 50°C).
+  - `Cooling_Ramp_Max`: Mechanical constraint on chiller spool-up.
+"""
 from __future__ import annotations
 
 from typing import Dict, Tuple

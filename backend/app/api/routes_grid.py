@@ -1,3 +1,19 @@
+"""
+routes_grid.py
+
+Purpose:
+  Exposes Grid Awareness capabilities: Topology, Real-time Awareness, and Prediction.
+
+Endpoints:
+  - **GET /grid/topology**: Returns the static IEEE-33 network graph (Nodes/Edges).
+    Used by the frontend Visualizer to render the "map".
+  - **GET /grid/predict**: Running "What-if" analysis for a specific node.
+    It asks the GNN: "How much power can I safely add at Node X right now?"
+
+Dependencies:
+  - `GridServiceReal` (Production) backed by Pandapower foundation.
+  - `DigitalTwin` (for current telemetry context like total load).
+"""
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query

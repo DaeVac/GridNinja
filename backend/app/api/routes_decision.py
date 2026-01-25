@@ -1,3 +1,22 @@
+"""
+routes_decision.py
+
+Purpose:
+  The primary Controller API for the Neural Control Plane.
+  Clients call this endpoint to request load shifts (ramp up/down).
+
+Endpoints:
+  - **GET /decision/latest**: Evaluates a proposed load shift (`deltaP_request_kw`) against:
+    1. Grid Capacity (GNN predicted headroom or manual override).
+    2. Physical Safety (Thermal limits).
+    3. Policy Rules (Battery SOC, Ramp rates).
+
+Contract:
+  - **Headroom Source**: If `grid_headroom_kw` is provided, it OVERRIDES the GNN.
+    Otherwise, the GNN is queried automatically.
+  - **Response**: Returns `DecisionResponse` with `status="APPROVED"` or `"BLOCKED"`,
+    along with a structured `trace` explaining the decision chain.
+"""
 from __future__ import annotations
 
 from fastapi import APIRouter, Query, HTTPException

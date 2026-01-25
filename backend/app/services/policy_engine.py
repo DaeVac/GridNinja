@@ -1,3 +1,23 @@
+"""
+policy_engine.py
+
+Purpose:
+  The "Safety System" that enforces operational constraints and business rules.
+  It acts as the final gatekeeper for any load shift request.
+
+Decision Hierarchy (Priority Order):
+  1. **Blocked**: Hard safety violation (e.g., Battery too hot, Rack overheating).
+  2. **Allowed**: Request passes all checks.
+  3. **Modified**: Request is safe but clipped (e.g., partial dispatch).
+
+Traceability:
+  - Emits `DecisionTraceEvent` for every rule evaluation.
+  - Uses `ReasonCode` strings (e.g., "THERMAL_LIMIT", "RAMP_CONSTRAINT_EXCEEDED") for UI feedback.
+
+Invariant Guarantees:
+  - Will NEVER approve a shift that predicted to violate `T_max` within `horizon_s`.
+  - Will NEVER discharge below `min_soc`.
+"""
 from __future__ import annotations
 
 import math
