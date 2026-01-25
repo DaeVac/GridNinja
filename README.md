@@ -2,6 +2,8 @@
 <img width="545" height="415" alt="image" src="https://github.com/user-attachments/assets/5b439902-c072-4636-953c-7de9baf83d75" />
 # GridNinja: The Neural Control Plane
 
+# GridNinja: The Neural Control Plane
+
 ![Status](https://img.shields.io/badge/Status-Operational-success) ![Stack](https://img.shields.io/badge/Tech-FastAPI%20%7C%20Next.js%20%7C%20PyTorch-blueviolet) ![Physics](https://img.shields.io/badge/Physics-ODE%20Solver-red) ![AI](https://img.shields.io/badge/AI-Graph%20Neural%20Network-green)
 
 **Turning Data Centers from Grid Liabilities into Virtual Power Plants.**
@@ -18,6 +20,30 @@ Instead of guessing, we use **Physics-Informed AI** to calculate exactly how muc
 
 ---
 
+## 🧮 Mathematical Model (The "Physics" in Cyber-Physical)
+
+Unlike standard dashboards, GridNinja solves differential equations in real-time to guarantee safety.
+
+### 1. Thermal Inertia (Newton's Law of Cooling)
+We model the datacenter's temperature evolution ($T$) as a function of IT Load ($P_{it}$), Cooling Power ($P_{cool}$), and Ambient Temperature ($T_{amb}$). This allows us to "ride through" power cuts by letting the building heat up safely.
+
+$$C_{th} \frac{dT}{dt} = P_{it} - P_{cool} - \frac{T - T_{amb}}{R_{th}}$$
+
+* $C_{th}$: Heat Capacity of the coolant loops (calculated dynamically based on fluid density).
+* $R_{th}$: Thermal Resistance of the facility walls.
+
+### 2. Battery Degradation (Arrhenius Equation)
+To prevent "profit-driven suicide" of our batteries, we calculate the chemical aging rate ($k$) based on cell temperature ($T$) and activation energy ($E_a$). We block any arbitrage trade where `Revenue < Degradation Cost`.
+
+$$k_{aging} = A \cdot e^{\frac{-E_a}{R \cdot T}}$$
+
+### 3. Grid Safety (AC Power Flow Proxy)
+Our GNN approximates the non-linear AC Power Flow equations to ensure voltage magnitudes ($|V|$) at every bus remain within safe limits:
+
+$$0.95 \le |V_i| \le 1.05 \quad \forall i \in \text{Grid Nodes}$$
+
+---
+
 ## System Architecture
 
 Our system uses a **3-Layer Safety Architecture** to ensure 99.999% reliability:
@@ -30,10 +56,10 @@ Our system uses a **3-Layer Safety Architecture** to ensure 99.999% reliability:
 ### 2. The Body (Physics Engine)
 * **Tech:** Python ODE Solver (`scipy`/`numpy`)
 * **Function:** Simulates the **Thermal Inertia** of the data center's coolant loops.
-* **Why it matters:** It solves Newton's Law of Cooling ($dT/dt = -k(T - T_{env})$) every second. This lets us "ride through" power cuts by letting the building heat up safely for short bursts.
+* **Why it matters:** It solves the differential equations above every second, creating a digital twin that predicts thermal runaway before it happens.
 
 ### 3. The Guardrails (Policy Engine)
-* **Tech:** Pydantic + Arrhenius Equation
+* **Tech:** Pydantic
 * **Function:** A rigid logic layer that strictly enforces battery degradation limits and voltage constraints.
 * **Why it matters:** It acts as a "Safety Clamp." Even if the AI hallucinates, the Physics Engine will block any action that violates physical safety limits.
 
