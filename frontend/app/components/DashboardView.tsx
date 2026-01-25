@@ -2,11 +2,19 @@
 
 import React from 'react';
 import { useTelemetryWS } from '@/lib/telemetry/useTelemetryWS';
-import GridVisualizer from './GridVisualizer';
-import ThermalVisualizer3D from './ThermalVisualizer3D';
 import clsx from 'clsx';
 import { Activity, Thermometer, Zap, RefreshCw } from 'lucide-react';
 import LogoutButton from '../../components/LogoutButton';
+import dynamic from 'next/dynamic';
+
+const GridVisualizer = dynamic(() => import('./GridVisualizer'), {
+    ssr: false,
+    loading: () => <div className="h-full w-full flex items-center justify-center bg-gray-50 text-gray-400 text-xs">Loading Grid...</div>
+});
+const ThermalVisualizer3D = dynamic(() => import('./ThermalVisualizer3D'), {
+    ssr: false,
+    loading: () => <div className="h-full w-full flex items-center justify-center bg-slate-900 text-slate-500 text-xs">Loading 3D Engine...</div>
+});
 
 export default function DashboardView({ user }: { user: any }) {
     const { status, latest } = useTelemetryWS();
