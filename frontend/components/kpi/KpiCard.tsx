@@ -62,6 +62,7 @@ export type KpiCardProps = {
   trend?: number[];
   isLoading?: boolean;
   secondary?: KpiSecondaryMetric;
+  className?: string;
 };
 
 function statusBadge(status: KpiStatus | undefined) {
@@ -128,11 +129,12 @@ export function KpiCard({
   trend,
   isLoading,
   secondary,
+  className,
 }: KpiCardProps) {
   if (isLoading) {
     return (
       <article
-        className="rounded-2xl p-6"
+        className={cn("rounded-2xl p-6", className)}
         style={{
           backgroundColor: COLORS.card.background,
           boxShadow:
@@ -171,6 +173,7 @@ export function KpiCard({
     <article
       className={cn(
         "rounded-2xl p-6 transition-transform duration-200 hover:scale-[1.02]",
+        className,
         toneRing
       )}
       style={{

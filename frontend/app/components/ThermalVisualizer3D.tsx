@@ -99,7 +99,7 @@ function ServerRack({ tempC }: { tempC: number }) {
                         >
                             <Thermometer className="w-4 h-4" />
                             <span className="font-mono font-bold text-lg">
-                                {tempC.toFixed(1)}°C
+                                {tempC.toFixed(1)}{"\u00B0"}C
                             </span>
                         </div>
                     </Html>
@@ -155,8 +155,13 @@ export default function ThermalVisualizer3D({ telemetry }: { telemetry: Telemetr
     // NOTE: Status pill logic removed here as it is better handled in the parent Dashboard
 
     return (
-        <div className="w-full h-full relative rounded-lg overflow-hidden border border-gray-700 shadow-xl bg-slate-900">
-            <Canvas shadows camera={{ position: [3, 2.5, 4], fov: 45 }} dpr={[1, 2]}>
+        <div className="w-full h-full relative overflow-hidden">
+            <Canvas
+                shadows
+                camera={{ position: [3, 2.5, 4], fov: 45 }}
+                dpr={[1, 2]}
+                className="w-full h-full"
+            >
                 <SceneSetup />
                 <ServerRack tempC={tempSmooth} />
                 <OrbitControls minPolarAngle={0} maxPolarAngle={Math.PI / 2} enableZoom={true} />

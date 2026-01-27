@@ -1,11 +1,11 @@
 import { redirect } from "next/navigation";
-import { auth0 } from "@/lib/auth0";
+import { auth0Configured, getSessionSafe } from "@/lib/auth0";
 import DigitalTwinDashboard from "../components/DigitalTwinDashboard";
 
 export default async function Page() {
-  const session = await auth0.getSession();
+  const session = await getSessionSafe();
 
-  if (!session?.user) {
+  if (auth0Configured && !session?.user) {
     redirect("/");
   }
 

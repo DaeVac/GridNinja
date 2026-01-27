@@ -1,16 +1,18 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import { useTelemetryWS } from '@/lib/telemetry/useTelemetryWS';
 import clsx from 'clsx';
-import { Activity, Thermometer, Zap, RefreshCw, DollarSign, Leaf, ShieldAlert } from 'lucide-react';
+import { Activity, Thermometer, Zap, DollarSign, Leaf, ShieldAlert } from 'lucide-react';
 import LogoutButton from '../../components/LogoutButton';
 import dynamic from 'next/dynamic';
 import { KpiGrid } from '../../components/kpi/KpiGrid';
 import { KpiCardProps } from '../../components/kpi/KpiCard';
 
 // Backend API
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+const API_BASE =
+    (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000").replace(/\/+$/, "");
 
 const DEMO_KPIS: KpiCardProps[] = [
     {
@@ -57,12 +59,24 @@ const DEMO_KPIS: KpiCardProps[] = [
 
 const GridVisualizer = dynamic(() => import('./GridVisualizer'), {
     ssr: false,
-    loading: () => <div className="h-full w-full flex items-center justify-center bg-gray-50 text-gray-400 text-xs">Loading Grid...</div>
+    loading: () => (
+        <div className="h-full w-full flex items-center justify-center bg-[#0B0705] text-[#7A3A1A] text-xs">
+            Loading Grid...
+        </div>
+    ),
 });
 const ThermalVisualizer3D = dynamic(() => import('./ThermalVisualizer3D'), {
     ssr: false,
-    loading: () => <div className="h-full w-full flex items-center justify-center bg-slate-900 text-slate-500 text-xs">Loading 3D Engine...</div>
+    loading: () => (
+        <div className="h-full w-full flex items-center justify-center bg-[#0B0705] text-[#7A3A1A] text-xs">
+            Loading 3D Engine...
+        </div>
+    ),
 });
+
+const LOGO_WIDTH = 160;
+const LOGO_HEIGHT = 40;
+const AVATAR_SIZE = 36;
 
 // User Profile type (compatible with Auth0 User)
 interface UserProfile {
@@ -75,15 +89,24 @@ interface UserProfile {
 export default function DashboardView({ user }: { user: UserProfile }) {
     const { status, latest } = useTelemetryWS();
     const [kpis, setKpis] = React.useState<KpiCardProps[]>(DEMO_KPIS);
-    const [loadingKpi, setLoadingKpi] = React.useState(false);
+    const [loadingKpi, setLoadingKpi] = React.useState(true);
+    const hasLoadedRef = React.useRef(false);
+    const avatarSrc = user.picture ?? "/tempLogo.svg";
+    const avatarAlt = user.name ? `${user.name} profile` : "Operator profile";
+    const isLocalAvatar = avatarSrc.startsWith("/");
 
     // Fetch KPIs every 5s
     React.useEffect(() => {
+        let alive = true;
+
         const fetchKpis = async () => {
+            const showLoading = !hasLoadedRef.current;
+            if (showLoading) setLoadingKpi(true);
             try {
-                const res = await fetch(`${API_BASE}/kpi/summary?window_s=3600`);
-                if (!res.ok) return;
+                const res = await fetch(`${API_BASE}/kpi/summary?window_s=3600`, { cache: 'no-store' });
+                if (!res.ok) throw new Error(`KPI summary failed: ${res.status}`);
                 const data = await res.json();
+                if (!alive) return;
 
                 const newKpis: KpiCardProps[] = [
                     {
@@ -134,125 +157,165 @@ export default function DashboardView({ user }: { user: UserProfile }) {
                     data.sla_penalty_usd ?? 0,
                 ].some((value) => Number.isFinite(value) && value !== 0);
                 setKpis(hasLiveData ? newKpis : DEMO_KPIS);
+                hasLoadedRef.current = true;
             } catch (err) {
                 console.error("Failed to fetch KPIs", err);
-                setKpis(DEMO_KPIS);
+                if (!alive) return;
+                if (!hasLoadedRef.current) {
+                    setKpis(DEMO_KPIS);
+                }
             } finally {
-                setLoadingKpi(false);
+                if (!alive) return;
+                if (showLoading) setLoadingKpi(false);
             }
         };
 
         fetchKpis();
         const interval = setInterval(fetchKpis, 5000);
-        return () => clearInterval(interval);
+        return () => {
+            alive = false;
+            clearInterval(interval);
+        };
     }, []);
 
     return (
-        <div className="flex flex-col h-screen w-full bg-gray-50 text-gray-900 font-sans">
+        <div className="flex flex-col min-h-screen w-full bg-[#120805] text-slate-100 font-sans">
             {/* --- Header --- */}
-            <header className="bg-white border-b px-4 py-4 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-30 shadow-sm">
-                <div className="flex flex-wrap items-center gap-4">
-                    <img src="/teamName.svg" alt="GridNinja" className="h-8" />
-                    <div className="hidden sm:block h-6 w-px bg-gray-200" />
-                    <h1 className="text-lg font-semibold text-gray-700">Mission Control</h1>
-                    <div className="hidden sm:block h-6 w-px bg-gray-200" />
-                    <a
-                        href="/digital-twin"
-                        className="button login"
-                    >
-                        Digital Twin {"->"}
-                    </a>
-                </div>
-
-                <div className="flex flex-wrap items-center justify-end gap-4 lg:gap-6 ml-auto">
-                    {/* Live Telemetry Pill */}
-                    <div className="flex items-center gap-3 bg-gray-100 px-3 py-1.5 rounded-full border border-gray-200">
-                        <div className="flex items-center gap-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            <Activity className="w-3.5 h-3.5" />
-                            System Status
-                        </div>
-                        <div className={clsx(
-                            "flex items-center gap-1.5 text-sm font-bold px-2 py-0.5 rounded-md",
-                            status === 'open' ? "bg-emerald-100 text-emerald-700" :
-                                status === 'connecting' ? "bg-amber-100 text-amber-700" :
-                                    "bg-red-100 text-red-700"
-                        )}>
-                            <div className={clsx("w-2 h-2 rounded-full", status === 'open' ? "bg-emerald-500 animate-pulse" : "bg-current")} />
-                            {status === 'open' ? 'ONLINE' : status.toUpperCase()}
-                        </div>
+            <header className="bg-[#120805] border-b border-[#3A1A0A] px-4 py-3 sticky top-0 z-30 shadow-lg">
+                <nav aria-label="Mission Control" className="w-full max-w-7xl mx-auto flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="flex flex-wrap items-center gap-3">
+                        <Image
+                            src="/teamName.svg"
+                            alt="GridNinja"
+                            width={LOGO_WIDTH}
+                            height={LOGO_HEIGHT}
+                            priority
+                            sizes="(max-width: 640px) 140px, 160px"
+                            className="h-7 w-auto sm:h-8"
+                        />
+                        <div className="hidden sm:block h-6 w-px bg-[#3A1A0A]" />
+                        <h1 className="text-lg sm:text-xl font-bold bg-gradient-to-r from-[#FFD400] via-[#FF5A00] to-[#E10600] bg-clip-text text-transparent">
+                            Mission Control
+                        </h1>
+                        <div className="hidden sm:block h-6 w-px bg-[#3A1A0A]" />
+                        <a
+                            href="/digital-twin"
+                            className="inline-flex items-center gap-2 rounded-full border border-[#E10600]/30 bg-[#120805] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#FFE65C] transition hover:border-[#E10600]/60 hover:text-white"
+                        >
+                            Digital Twin {"->"}
+                        </a>
                     </div>
 
-                    {/* Quick Stats */}
-                    {latest && (
-                        <div className="hidden md:flex items-center gap-6 text-sm">
-                            <div className="flex flex-col items-end leading-tight">
-                                <span className="text-xs text-gray-400 font-medium">Frequency</span>
-                                <span className={clsx("font-bold", latest.frequency_hz < 59.95 ? "text-red-600" : "text-gray-700")}>
-                                    {latest.frequency_hz.toFixed(3)} Hz
-                                </span>
+                    <div className="flex flex-wrap items-center gap-4">
+                        {/* Live Telemetry Pill */}
+                        <div className="flex items-center gap-3 bg-[#120805] px-3 py-1.5 rounded-full border border-[#E10600]/30" aria-live="polite">
+                            <div className="flex items-center gap-2 text-[10px] font-semibold text-[#7A3A1A] uppercase tracking-[0.2em]">
+                                <Activity className="w-3.5 h-3.5" />
+                                System Status
                             </div>
-                            <div className="flex flex-col items-end leading-tight">
-                                <span className="text-xs text-gray-400 font-medium">Total Load</span>
-                                <span className="font-bold text-gray-700">{latest.total_load_kw.toFixed(0)} kW</span>
+                            <div className={clsx(
+                                "flex items-center gap-1.5 text-xs font-bold px-2 py-0.5 rounded-md",
+                                status === 'open' ? "bg-[#E10600]/20 text-[#FFE65C]" :
+                                    status === 'connecting' ? "bg-[#FF5A00]/20 text-[#FFB800]" :
+                                        "bg-[#E10600]/30 text-[#E10600]"
+                            )}>
+                                <div className={clsx("w-2 h-2 rounded-full", status === 'open' ? "bg-[#E10600] animate-pulse" : "bg-current")} />
+                                {status === 'open' ? 'ONLINE' : status.toUpperCase()}
                             </div>
                         </div>
-                    )}
 
-                    <div className="hidden sm:block h-6 w-px bg-gray-200" />
+                        {/* Quick Stats */}
+                        {latest && (
+                            <div className="hidden md:flex items-center gap-6 text-xs">
+                                <div className="flex flex-col items-end leading-tight">
+                                    <span className="text-[10px] text-[#7A3A1A] font-medium uppercase tracking-[0.2em]">Frequency</span>
+                                    <span className={clsx("font-bold", latest.frequency_hz < 59.95 ? "text-[#E10600]" : "text-[#FFE65C]")}>
+                                        {latest.frequency_hz.toFixed(3)} Hz
+                                    </span>
+                                </div>
+                                <div className="flex flex-col items-end leading-tight">
+                                    <span className="text-[10px] text-[#7A3A1A] font-medium uppercase tracking-[0.2em]">Total Load</span>
+                                    <span className="font-bold text-[#FFE65C]">{latest.total_load_kw.toFixed(0)} kW</span>
+                                </div>
+                            </div>
+                        )}
 
-                    <div className="flex items-center gap-3">
-                        <div className="text-right hidden sm:block">
-                            <div className="text-sm font-semibold text-gray-800">{user.name}</div>
-                            <div className="text-xs text-gray-400">Operator</div>
+                        <div className="hidden sm:block h-6 w-px bg-[#3A1A0A]" />
+
+                        <div className="flex items-center gap-3">
+                            <div className="text-right hidden sm:block">
+                                <div className="text-sm font-semibold text-[#FFE65C]">{user.name}</div>
+                                <div className="text-[10px] uppercase tracking-[0.2em] text-[#7A3A1A]">Operator</div>
+                            </div>
+                            {isLocalAvatar ? (
+                                <Image
+                                    src={avatarSrc}
+                                    alt={avatarAlt}
+                                    width={AVATAR_SIZE}
+                                    height={AVATAR_SIZE}
+                                    className="h-9 w-9 rounded-full border border-[#3A1A0A] object-cover"
+                                />
+                            ) : (
+                                <img
+                                    src={avatarSrc}
+                                    alt={avatarAlt}
+                                    width={AVATAR_SIZE}
+                                    height={AVATAR_SIZE}
+                                    loading="lazy"
+                                    referrerPolicy="no-referrer"
+                                    className="h-9 w-9 rounded-full border border-[#3A1A0A] object-cover"
+                                />
+                            )}
+                            <LogoutButton variant="compact" />
                         </div>
-                        <img src={user.picture} alt="Profile" className="w-9 h-9 rounded-full border border-gray-200" />
-                        <LogoutButton />
                     </div>
-                </div>
+                </nav>
             </header>
 
             {/* --- Main Content --- */}
-            <main className="flex-1 min-h-0 p-4 sm:p-6 flex flex-col gap-6 relative overflow-y-auto scrollbar-mission">
+            <main className="flex-1 min-h-0 p-4 sm:p-6 relative overflow-y-auto scrollbar-twin">
+                <div className="w-full max-w-7xl mx-auto flex flex-col gap-6 pb-8">
+                    {/* KPI Section */}
+                    <section aria-labelledby="performance-metrics-title">
+                        <h2 id="performance-metrics-title" className="text-lg font-semibold text-[#FFE65C] mb-3">
+                            Performance Metrics
+                        </h2>
+                        <KpiGrid items={kpis} isLoading={loadingKpi} columns={4} layout="row" />
+                    </section>
 
-                {/* KPI Section */}
-                <section>
-                    <h2 className="text-xl font-bold text-gray-800 mb-3">Performance Metrics</h2>
-                    <KpiGrid items={kpis} isLoading={loadingKpi} columns={4} />
-                </section>
+                    {/* Visualizers Grid */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-                {/* Visualizers Grid */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1">
+                        {/* Left: Network Topology */}
+                        <section aria-labelledby="grid-topology-title" className="flex flex-col gap-3">
+                            <div className="flex items-center justify-between">
+                                <h2 id="grid-topology-title" className="text-lg font-semibold flex items-center gap-2 text-[#FFB800]">
+                                    <Zap className="w-5 h-5 text-[#FFB800]" />
+                                    Grid Topology
+                                </h2>
+                                <span className="text-xs font-mono text-[#7A3A1A]">IEEE-33 BUS SYSTEM</span>
+                            </div>
+                            <div className="relative isolate h-[320px] sm:h-[360px] lg:h-[460px] bg-[#0B0705] rounded-xl border border-[#3A1A0A] shadow-xl overflow-hidden">
+                                <GridVisualizer telemetry={latest} />
+                            </div>
+                        </section>
 
-                    {/* Left: Network Topology */}
-                    <div className="flex flex-col gap-4 min-h-[500px] lg:h-full">
-                        <div className="flex items-center justify-between">
-                            <h2 className="text-xl font-bold flex items-center gap-2">
-                                <Zap className="w-5 h-5 text-amber-500" />
-                                Grid Topology
-                            </h2>
-                            <span className="text-xs font-mono text-gray-400">IEEE-33 BUS SYSTEM</span>
-                        </div>
-                        <div className="flex-1 bg-white rounded-xl border shadow-sm relative overflow-hidden hover:shadow-md transition-shadow">
-                            <GridVisualizer telemetry={latest} />
-                        </div>
-                    </div>
-
-                    {/* Right: Thermal Twin */}
-                    <div className="flex flex-col gap-4 h-full">
-                        <div className="flex items-center justify-between">
-                            <h2 className="text-xl font-bold flex items-center gap-2">
-                                <Thermometer className="w-5 h-5 text-blue-500" />
-                                3D Thermal Twin
-                            </h2>
-                            <span className="text-xs font-mono text-gray-400">PHYSICS ENGINE V2</span>
-                        </div>
-                        {/* Dark Card for 3D View */}
-                        <div className="flex-1 bg-slate-900 rounded-xl border border-slate-700 shadow-sm relative overflow-hidden hover:shadow-md transition-shadow">
-                            <ThermalVisualizer3D telemetry={latest} />
-                        </div>
+                        {/* Right: Thermal Twin */}
+                        <section aria-labelledby="thermal-twin-title" className="flex flex-col gap-3">
+                            <div className="flex items-center justify-between">
+                                <h2 id="thermal-twin-title" className="text-lg font-semibold flex items-center gap-2 text-[#FFE65C]">
+                                    <Thermometer className="w-5 h-5 text-[#FF5A00]" />
+                                    3D Thermal Twin
+                                </h2>
+                                <span className="text-xs font-mono text-[#7A3A1A]">PHYSICS ENGINE V2</span>
+                            </div>
+                            {/* Dark Card for 3D View */}
+                            <div className="relative isolate h-[320px] sm:h-[360px] lg:h-[460px] bg-[#0B0705] rounded-xl border border-[#3A1A0A] shadow-xl overflow-hidden">
+                                <ThermalVisualizer3D telemetry={latest} />
+                            </div>
+                        </section>
                     </div>
                 </div>
-
             </main>
         </div>
     );

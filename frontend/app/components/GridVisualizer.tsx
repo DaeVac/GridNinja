@@ -269,7 +269,7 @@ export default function GridVisualizer({ telemetry }: GridVisualizerProps) {
     }, []);
 
     return (
-        <div className="flex h-full w-full border rounded-lg bg-gray-50 overflow-hidden relative">
+        <div className="flex h-full w-full overflow-hidden relative">
             {/* React Flow Canvas */}
             <div className="flex-1 relative">
                 <ReactFlow
@@ -280,63 +280,65 @@ export default function GridVisualizer({ telemetry }: GridVisualizerProps) {
                     onNodeClick={onNodeClick}
                     fitView
                     attributionPosition="bottom-left"
+                    className="h-full w-full"
                 >
-                    <Background color="#ccc" gap={20} />
+                    <Background color="#3A1A0A" gap={20} />
                     <Controls />
                 </ReactFlow>
 
                 {/* Overlay: Telemetry Status (Properly Stylized) */}
-                <div className="absolute top-4 right-4 bg-white/90 p-4 rounded-lg shadow-lg border backdrop-blur-sm z-10 transition-colors duration-300">
-                    <h3 className="text-sm font-semibold text-gray-500 mb-2">Live Grid Status</h3>
+                <div className="absolute top-4 right-4 bg-[#120805]/85 p-4 rounded-lg shadow-lg border border-[#3A1A0A] backdrop-blur-sm z-10 transition-colors duration-300">
+                    <h3 className="text-xs font-semibold text-[#7A3A1A] mb-2 uppercase tracking-[0.2em]">Live Grid Status</h3>
                     {telemetry ? (
                         <div className="space-y-2 text-sm">
                             <div className="flex items-center justify-between gap-4">
-                                <span className="text-gray-600">Frequency</span>
+                                <span className="text-[#7A3A1A]">Frequency</span>
                                 <span className={clsx(
                                     "font-mono font-bold transition-colors",
-                                    telemetry.frequency_hz < 59.95 ? "text-red-600 animate-pulse" : "text-emerald-600"
+                                    telemetry.frequency_hz < 59.95 ? "text-[#E10600] animate-pulse" : "text-[#FFE65C]"
                                 )}>
                                     {telemetry.frequency_hz.toFixed(3)} Hz
                                 </span>
                             </div>
                             <div className="flex items-center justify-between gap-4">
-                                <span className="text-gray-600">Total Load</span>
-                                <span className="font-mono text-blue-600">{telemetry.total_load_kw.toFixed(0)} kW</span>
+                                <span className="text-[#7A3A1A]">Total Load</span>
+                                <span className="font-mono text-[#FFB800]">{telemetry.total_load_kw.toFixed(0)} kW</span>
                             </div>
                         </div>
                     ) : (
-                        <div className="text-xs text-gray-400 animate-pulse">Connecting to SCADA...</div>
+                        <div className="text-xs text-[#FFB800] animate-pulse">Connecting to SCADA...</div>
                     )}
                 </div>
             </div>
 
             {/* Sidebar: GNN Prediction */}
             {selectedNode && (
-                <div className="w-80 bg-white border-l p-6 flex flex-col shadow-xl z-20 overflow-y-auto">
+                <div className="w-80 bg-[#120805] border-l border-[#3A1A0A] p-6 flex flex-col shadow-xl z-20 overflow-y-auto scrollbar-twin">
                     <div className="flex items-center justify-between mb-6">
-                        <h2 className="text-xl font-bold text-gray-800">Node {selectedNode}</h2>
+                        <h2 className="text-lg font-semibold text-[#FFE65C]">Node {selectedNode}</h2>
                         <button
                             onClick={() => setSelectedNode(null)}
-                            className="text-gray-400 hover:text-gray-600"
+                            className="text-[#7A3A1A] hover:text-[#FFE65C] transition-colors"
+                            aria-label="Close node details"
                         >
-                            ✕
+                            X
                         </button>
                     </div>
 
                     {loadingPred ? (
                         <div className="flex flex-col items-center justify-center py-10 space-y-3">
-                            <Activity className="w-8 h-8 text-blue-500 animate-spin" />
-                            <p className="text-sm text-gray-500">Running GNN Inference...</p>
+                            <Activity className="w-8 h-8 text-[#FFB800] animate-spin" />
+                            <p className="text-sm text-[#7A3A1A]">Running GNN Inference...</p>
                         </div>
                     ) : prediction ? (
                         <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
                             {/* Headroom Card */}
-                            <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-4">
-                                <div className="text-sm text-emerald-800 font-medium mb-1">Safe Shift Headroom</div>
-                                <div className="text-3xl font-bold text-emerald-600">
-                                    {prediction.safe_shift_kw.toFixed(0)} <span className="text-sm font-normal text-emerald-500">kW</span>
+                            <div className="bg-[#0B0705] border border-[#3A1A0A] rounded-lg p-4">
+                                <div className="text-xs text-[#7A3A1A] uppercase tracking-[0.2em] mb-2">Safe Shift Headroom</div>
+                                <div className="text-3xl font-bold text-[#FFB800]">
+                                    {prediction.safe_shift_kw.toFixed(0)} <span className="text-sm font-normal text-[#7A3A1A]">kW</span>
                                 </div>
-                                <div className="text-xs text-emerald-700 mt-2 flex items-center gap-1">
+                                <div className="text-xs text-[#FFE65C] mt-2 flex items-center gap-1">
                                     <Zap className="w-3 h-3" />
                                     Confidence: {(prediction.confidence * 100).toFixed(0)}%
                                 </div>
@@ -344,50 +346,52 @@ export default function GridVisualizer({ telemetry }: GridVisualizerProps) {
 
                             {/* Reason / Debug */}
                             <div className="space-y-3">
-                                <h4 className="text-sm font-semibold text-gray-900 border-b pb-1">AI Reasoning</h4>
-                                <div className="text-sm text-gray-600">
-                                    Clamp Reason: <span className="font-medium text-gray-900">{prediction.reason_code}</span>
+                                <h4 className="text-xs font-semibold text-[#FFE65C] uppercase tracking-[0.2em] border-b border-[#3A1A0A] pb-2">
+                                    AI Reasoning
+                                </h4>
+                                <div className="text-sm text-[#7A3A1A]">
+                                    Clamp Reason: <span className="font-medium text-[#FFE65C]">{prediction.reason_code}</span>
                                 </div>
 
                                 {/* Better Debug Rendering */}
                                 {prediction.debug && (
-                                    <div className="bg-gray-50 rounded border p-3 space-y-2">
-                                        <h5 className="text-[10px] font-bold text-gray-500 uppercase">Input Factors</h5>
+                                    <div className="bg-[#0B0705] rounded border border-[#3A1A0A] p-3 space-y-2">
+                                        <h5 className="text-[10px] font-bold text-[#7A3A1A] uppercase tracking-[0.2em]">Input Factors</h5>
                                         {Object.entries(prediction.debug).map(([k, v]) => (
                                             <div key={k} className="flex justify-between text-xs">
-                                                <span className="text-gray-600 font-mono">{k}</span>
-                                                <span className="text-gray-900 font-mono">{typeof v === 'number' ? v.toFixed(3) : v}</span>
+                                                <span className="text-[#7A3A1A] font-mono">{k}</span>
+                                                <span className="text-[#FFE65C] font-mono">{typeof v === 'number' ? v.toFixed(3) : v}</span>
                                             </div>
                                         ))}
                                     </div>
                                 )}
                             </div>
 
-                            <div className="mt-8 p-4 bg-blue-50 rounded-lg text-xs text-blue-700">
-                                <p className="font-semibold mb-1">GNN Context</p>
+                            <div className="mt-8 p-4 bg-[#0B0705] rounded-lg text-xs text-[#7A3A1A] border border-[#3A1A0A]">
+                                <p className="font-semibold mb-1 text-[#FFE65C]">GNN Context</p>
                                 This prediction is generated by a Graph Neural Network analyzing the IEEE-33 topology and current load flows relative to Node {selectedNode}.
                             </div>
 
                             {/* Black Box Explainer Section */}
-                            <div className="mt-6 pt-4 border-t space-y-3">
+                            <div className="mt-6 pt-4 border-t border-[#3A1A0A] space-y-3">
                                 <button
                                     onClick={() => requestInjection(500)}
-                                    className="w-full rounded-lg bg-black text-white text-sm py-2 hover:opacity-90 transition-opacity"
+                                    className="w-full rounded-lg border border-[#FF5A00]/40 bg-[#120805] text-[#FFE65C] text-sm py-2 hover:border-[#FF5A00]/70 hover:text-white transition-colors"
                                 >
                                     Test Injection (500 kW)
                                 </button>
 
                                 {lastDecision && (
-                                    <div className="rounded-lg border p-3 bg-white">
-                                        <div className="text-xs font-semibold text-gray-500 uppercase">Controller Decision</div>
-                                        <div className="mt-1 text-sm">
+                                    <div className="rounded-lg border border-[#3A1A0A] p-3 bg-[#0B0705]">
+                                        <div className="text-[10px] font-semibold text-[#7A3A1A] uppercase tracking-[0.2em]">Controller Decision</div>
+                                        <div className="mt-2 text-sm text-[#FFE65C]">
                                             Requested: <span className="font-mono">{lastDecision.requested_deltaP_kw}</span> kW<br />
                                             Approved: <span className="font-mono">{lastDecision.approved_deltaP_kw}</span> kW<br />
                                             Status:{" "}
-                                            <span className={lastDecision.blocked ? "text-red-600 font-semibold" : "text-green-600 font-semibold"}>
+                                            <span className={lastDecision.blocked ? "text-[#E10600] font-semibold" : "text-[#FFE65C] font-semibold"}>
                                                 {lastDecision.blocked ? "BLOCKED" : "ALLOWED/CLIPPED"}
                                             </span>
-                                            <div className="text-xs text-gray-600 mt-1">
+                                            <div className="text-xs text-[#7A3A1A] mt-1">
                                                 Reason: <span className="font-mono">{lastDecision.reason}</span>
                                             </div>
                                         </div>
@@ -395,7 +399,7 @@ export default function GridVisualizer({ telemetry }: GridVisualizerProps) {
                                         {lastDecision.blocked && (
                                             <button
                                                 onClick={explainBlocked}
-                                                className="mt-3 w-full rounded-lg border text-sm py-2 hover:bg-gray-50 disabled:opacity-60 transition-colors"
+                                                className="mt-3 w-full rounded-lg border border-[#3A1A0A] text-sm py-2 text-[#FFE65C] hover:border-[#FF5A00]/60 disabled:opacity-60 transition-colors"
                                                 disabled={explaining}
                                             >
                                                 {explaining ? "Generating Post-Mortem..." : "Why was this blocked?"}
@@ -405,9 +409,11 @@ export default function GridVisualizer({ telemetry }: GridVisualizerProps) {
                                 )}
 
                                 {explainReport && (
-                                    <div className="rounded-lg border p-4 bg-gray-50">
-                                        <div className="text-xs font-semibold text-gray-500 uppercase mb-2">Post-Mortem Report</div>
-                                        <div className="whitespace-pre-wrap text-sm text-gray-900 leading-relaxed">
+                                    <div className="rounded-lg border border-[#3A1A0A] p-4 bg-[#0B0705]">
+                                        <div className="text-[10px] font-semibold text-[#7A3A1A] uppercase tracking-[0.2em] mb-2">
+                                            Post-Mortem Report
+                                        </div>
+                                        <div className="whitespace-pre-wrap text-sm text-[#FFE65C] leading-relaxed">
                                             {explainReport}
                                         </div>
                                     </div>
@@ -422,3 +428,4 @@ export default function GridVisualizer({ telemetry }: GridVisualizerProps) {
         </div>
     );
 }
+

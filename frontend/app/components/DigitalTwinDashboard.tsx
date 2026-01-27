@@ -243,7 +243,7 @@ export default function DigitalTwinDashboard() {
                     <div className="hidden sm:block h-6 w-px bg-[#3A1A0A]" />
                     <a
                         href="/dashboard"
-                        className="button logout"
+                        className="inline-flex items-center gap-2 rounded-full border border-[#E10600]/30 bg-[#120805] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#FFE65C] transition hover:border-[#E10600]/60 hover:text-white"
                     >
                         {"<-"} Mission Control
                     </a>

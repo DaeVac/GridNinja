@@ -1,13 +1,19 @@
 import { redirect } from "next/navigation";
-import { auth0 } from "@/lib/auth0";
+import { auth0Configured, getSessionSafe } from "@/lib/auth0";
 import DashboardView from "../components/DashboardView";
 
 export default async function DashboardPage() {
-  const session = await auth0.getSession();
+  const session = await getSessionSafe();
 
-  if (!session?.user) {
+  if (auth0Configured && !session?.user) {
     redirect("/");
   }
 
-  return <DashboardView user={session.user} />;
+  const user = session?.user ?? {
+    name: "Local Dev",
+    picture: "/tempLogo.svg",
+    email: "local@gridninja.dev",
+  };
+
+  return <DashboardView user={user} />;
 }

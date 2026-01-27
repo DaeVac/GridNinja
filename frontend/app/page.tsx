@@ -1,22 +1,22 @@
-import { auth0 } from "@/lib/auth0";
+import { auth0Configured, getSessionSafe } from "@/lib/auth0";
 import LoginButton from "@/components/LoginButton";
 import LogoutButton from "@/components/LogoutButton";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const session = await auth0.getSession();
+  const session = await getSessionSafe();
   const user = session?.user;
 
   return (
     <div className="app-container">
       <div className="team-row">
-        <img src="/Neutron.0.GIF" alt="logo" />
-        <img src="/teamName.svg" alt="Team Name" />
+        <img src="/Neutron.0.GIF" alt="logo" loading="lazy" />
+        <img src="/teamName.svg" alt="Team Name" loading="lazy" />
       </div>
       <div className="header-container">
         <div className="video-container">
-          <video autoPlay muted loop playsInline>
+          <video autoPlay muted loop playsInline preload="metadata" poster="/tempLogo.svg">
             <source src="/Video Project.mp4" type="video/mp4" />
           </video>
         </div>
@@ -26,7 +26,13 @@ export default async function Home() {
         </h1>
       </div>
       <div className="login-button-container">
-        {user ? <LogoutButton /> : <LoginButton />}
+        {auth0Configured ? (
+          user ? <LogoutButton /> : <LoginButton />
+        ) : (
+          <a href="/dashboard" className="button login">
+            Fake Log In
+          </a>
+        )}
       </div>
 
       {/* <div className="main-card-wrapper">
