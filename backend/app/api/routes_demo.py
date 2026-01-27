@@ -8,14 +8,66 @@ from fastapi import APIRouter, HTTPException, Query
 from starlette.responses import FileResponse
 
 from app.deps import get_twin_service
+from app.config import env_flag, env_int
 from app.models.domain import DecisionResponse
 
 router = APIRouter()
 
+_runtime_demo_enabled = False
+
+
+def _is_demo_mode_enabled() -> bool:
+    return env_flag("DEMO_MODE", False) or _runtime_demo_enabled
+
 
 def _require_demo_mode() -> None:
-    if os.getenv("DEMO_MODE", "false").strip().lower() not in ("1", "true", "yes", "on"):
+    if not _is_demo_mode_enabled():
         raise HTTPException(status_code=404, detail="Not found")
+
+
+@router.get("/status")
+async def demo_status() -> Dict[str, Any]:
+    demo_mode = _is_demo_mode_enabled()
+    return {
+        "ok": True,
+        "demo_mode": demo_mode,
+        "deterministic": env_flag("DEMO_DETERMINISTIC", demo_mode),
+        "seed": env_int("DEMO_SEED", 7),
+        "gnn_enabled": env_flag("GNN_ENABLED", False),
+        "explainer_enabled": env_flag("EXPLAINER_ENABLED", False),
+        "runtime_enabled": _runtime_demo_enabled,
+        "env_demo_mode": env_flag("DEMO_MODE", False),
+    }
+
+
+@router.post("/enable")
+async def enable_demo_mode() -> Dict[str, Any]:
+    """
+    Enable demo mode at runtime (best-effort).
+    Useful for local demos without restarting the backend.
+    """
+    global _runtime_demo_enabled
+    _runtime_demo_enabled = True
+
+    os.environ["DEMO_MODE"] = "true"
+    os.environ["DEMO_DETERMINISTIC"] = os.getenv("DEMO_DETERMINISTIC", "true")
+    os.environ["DEMO_SEED"] = os.getenv("DEMO_SEED", "7")
+    os.environ["EXPLAINER_ENABLED"] = os.getenv("EXPLAINER_ENABLED", "false")
+    os.environ["GNN_ENABLED"] = os.getenv("GNN_ENABLED", "false")
+
+    svc = get_twin_service()
+    seed = env_int("DEMO_SEED", 7)
+    deterministic = env_flag("DEMO_DETERMINISTIC", True)
+    svc.set_demo_mode(True, deterministic=deterministic, seed=seed)
+
+    return {
+        "ok": True,
+        "demo_mode": True,
+        "deterministic": deterministic,
+        "seed": seed,
+        "gnn_enabled": env_flag("GNN_ENABLED", False),
+        "explainer_enabled": env_flag("EXPLAINER_ENABLED", False),
+    }
 
 
 @router.post("/scenario/{name}", response_model=DecisionResponse)

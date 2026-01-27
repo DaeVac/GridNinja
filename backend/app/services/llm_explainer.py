@@ -14,7 +14,9 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Tuple
+
+from app.config import env_flag
 
 # Gemini SDK (Google Gen AI Python SDK)
 try:
@@ -51,64 +53,179 @@ Return a concise Markdown "Post-Mortem Report" with:
 """
 
 
+def _to_float(val: Any) -> Optional[float]:
+    try:
+        if val is None:
+            return None
+        return float(val)
+    except Exception:
+        return None
+
+
+def _primary_str(val: Any) -> str:
+    if val is None:
+        return ""
+    if hasattr(val, "value"):
+        try:
+            return str(val.value)
+        except Exception:
+            return str(val)
+    if isinstance(val, dict) and "value" in val:
+        return str(val.get("value") or "")
+    return str(val)
+
+
+def _cause_from_reason(reason_upper: str, primary_upper: str = "") -> str:
+    if "THERMAL" in reason_upper or "THERMAL" in primary_upper:
+        return "THERMAL"
+    if "GRID" in reason_upper or "HEADROOM" in reason_upper or "VOLT" in reason_upper or "GRID" in primary_upper:
+        return "GRID/VOLTAGE"
+    if "BATTERY" in reason_upper or "AGING" in reason_upper or "BATTERY" in primary_upper:
+        return "BATTERY/AGING"
+    if "RAMP" in reason_upper or "POLICY" in reason_upper or "RAMP" in primary_upper:
+        return "POLICY/RAMP"
+    return "POLICY/RAMP"
+
+
+def _severity_rank(val: Any) -> int:
+    s = str(val or "").upper()
+    if s == "HIGH":
+        return 3
+    if s == "MEDIUM":
+        return 2
+    if s == "LOW":
+        return 1
+    return 0
+
+
+def _action_items(reason_upper: str, cause: str) -> List[str]:
+    if "THERMAL" in reason_upper or cause == "THERMAL":
+        return [
+            "Increase cooling headroom or efficiency",
+            "Reduce IT load or requested deltaP",
+            "Slow the ramp rate or extend the horizon",
+        ]
+    if "GRID" in reason_upper or "HEADROOM" in reason_upper or cause == "GRID/VOLTAGE":
+        return [
+            "Reduce requested deltaP magnitude",
+            "Increase available grid headroom or schedule off-peak",
+            "Re-try after frequency/voltage stabilizes",
+        ]
+    if "BATTERY" in reason_upper or "AGING" in reason_upper or cause == "BATTERY/AGING":
+        return [
+            "Reduce throughput or deltaP magnitude",
+            "Allow battery to cool before retry",
+            "Schedule during lower-load periods",
+        ]
+    if "RAMP" in reason_upper or "POLICY" in reason_upper or cause == "POLICY/RAMP":
+        return [
+            "Lower ramp_rate_kw_per_s",
+            "Extend horizon_s to smooth ramp",
+            "Reduce requested deltaP magnitude",
+        ]
+    return [
+        "Reduce requested deltaP magnitude",
+        "Re-try during lower-load conditions",
+        "Adjust ramp rate to improve stability",
+    ]
+
+
 def _heuristic_fallback(decision: Dict[str, Any]) -> Dict[str, Any]:
-    """Always-works explanation if no API key is configured."""
+    """Deterministic post-mortem using plan + trace only."""
     plan = decision.get("plan") or {}
     blocked = bool(decision.get("blocked"))
+
+    requested = _to_float(decision.get("requested_deltaP_kw")) or 0.0
+    approved = _to_float(decision.get("approved_deltaP_kw")) or 0.0
+    clipped = (abs(approved) + 1e-9) < abs(requested)
+
     reason = str(decision.get("reason") or plan.get("reason") or "UNKNOWN")
-    primary = str(plan.get("primary_constraint") or "UNKNOWN")
-
-    # Determine cause bucket quickly
+    primary_raw = _primary_str(plan.get("primary_constraint") or "")
+    primary_upper = primary_raw.upper()
     reason_upper = reason.upper()
-    if "THERMAL" in reason_upper:
-        cause = "THERMAL"
-    elif "GRID" in reason_upper or primary.upper() == "GRID":
-        cause = "GRID/VOLTAGE"
-    elif "BATTERY" in reason_upper:
-        cause = "BATTERY/AGING"
-    else:
-        cause = "POLICY/RAMP"
+    cause = _cause_from_reason(reason_upper, primary_upper)
 
-    # Pull strongest trace evidence
+    constraint_value = _to_float(plan.get("constraint_value"))
+    constraint_threshold = _to_float(plan.get("constraint_threshold"))
+
+    # Evidence selection
     trace: List[Dict[str, Any]] = decision.get("trace") or []
-    bad = [e for e in trace if str(e.get("status")) == "BLOCKED" or str(e.get("severity")) == "HIGH"]
-    bad = bad[-6:]  # keep last few
+    scored: List[Tuple[int, Dict[str, Any]]] = []
+    for e in trace:
+        status = str(e.get("status") or "").upper()
+        sev = _severity_rank(e.get("severity"))
+        has_vals = _to_float(e.get("value")) is not None and _to_float(e.get("threshold")) is not None
+        score = 0
+        if status == "BLOCKED":
+            score += 4
+        score += sev
+        if has_vals:
+            score += 2
+        scored.append((score, e))
 
-    evidence_lines = []
-    for e in bad:
-        rid = e.get("rule_id", "RULE")
-        msg = e.get("message", "")
-        val = e.get("value", None)
-        thr = e.get("threshold", None)
+    scored.sort(key=lambda t: t[0], reverse=True)
+
+    evidence_lines: List[str] = []
+    if constraint_value is not None and constraint_threshold is not None:
+        label = reason if reason != "UNKNOWN" else (primary_raw or "CONSTRAINT")
+        evidence_lines.append(
+            f"- **{label}**: constraint (value={constraint_value}, threshold={constraint_threshold})"
+        )
+
+    seen = set()
+    for _, e in scored:
+        if len(evidence_lines) >= 6:
+            break
+        rid = str(e.get("rule_id") or "RULE")
+        msg = str(e.get("message") or "").strip()
+        val = _to_float(e.get("value"))
+        thr = _to_float(e.get("threshold"))
+        key = (rid, val, thr, msg)
+        if key in seen:
+            continue
+        seen.add(key)
         if val is not None and thr is not None:
-            evidence_lines.append(f"- **{rid}**: {msg} (value={val}, threshold={thr})")
+            line = f"- **{rid}**: {msg} (value={val}, threshold={thr})" if msg else f"- **{rid}** (value={val}, threshold={thr})"
         else:
-            evidence_lines.append(f"- **{rid}**: {msg}")
+            line = f"- **{rid}**: {msg}" if msg else f"- **{rid}**"
+        evidence_lines.append(line)
 
-    verdict = "Blocked" if blocked else "Allowed/Clipped"
+    if not evidence_lines:
+        evidence_lines = ["- No high-severity trace events available."]
 
-    md = f"""# Post-Mortem Report (Fallback)
+    verdict = "Blocked" if blocked else ("Clipped" if clipped else "Allowed")
+
+    # Confidence scoring
+    if constraint_value is not None and constraint_threshold is not None:
+        confidence = 0.85
+    elif any("threshold=" in ln for ln in evidence_lines):
+        confidence = 0.72
+    elif any("**" in ln for ln in evidence_lines):
+        confidence = 0.65
+    else:
+        confidence = 0.55
+
+    actions = _action_items(reason_upper, cause)
+
+    md = f"""# Post-Mortem Report (Deterministic)
 
 **Verdict:** {verdict}  
 **Primary constraint:** {cause}  
 **Reason code:** `{reason}`
 
 ## Evidence
-{chr(10).join(evidence_lines) if evidence_lines else "- No high-severity trace events available."}
+{chr(10).join(evidence_lines)}
 
 ## How to make it pass next time
-- Reduce requested deltaP or ramp more gradually
-- Increase cooling headroom / reduce thermal load
-- Increase available grid headroom (if voltage/line constraints)
-- Re-try during lower-carbon or lower-load window
+{chr(10).join([f"- {a}" for a in actions])}
 
-**Confidence:** 0.55
+**Confidence:** {confidence:.2f}
 """
 
     return {
         "report_markdown": md,
         "cause": cause,
-        "confidence": 0.55,
+        "confidence": float(confidence),
         "from_llm": False,
     }
 
@@ -135,6 +252,12 @@ def explain_decision(decision: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Dict with report_markdown, cause, confidence, from_llm
     """
+    demo_mode = env_flag("DEMO_MODE", False)
+    offline_mode = env_flag("OFFLINE_MODE", False) or env_flag("DEMO_OFFLINE", False)
+    explainer_enabled = env_flag("EXPLAINER_ENABLED", not (demo_mode or offline_mode))
+    if not explainer_enabled:
+        return _heuristic_fallback(decision)
+
     api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
     
     if not api_key or not GENAI_AVAILABLE:

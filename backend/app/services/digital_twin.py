@@ -36,6 +36,7 @@ from app.models.domain import (
     RuleStatus,
     SeverityLevel
 )
+from app.config import env_flag, env_int
 from app.services.physics_engine import ThermalTwin
 from app.services.policy_engine import build_ramp_plan
 
@@ -189,12 +190,32 @@ class DigitalTwinService:
         # Optional services
         self.gnn = gnn
         self.carbon = carbon
+
+        # Demo flags (deterministic/offline stability)
+        self.demo_mode = env_flag("DEMO_MODE", False)
+        self.deterministic = env_flag("DEMO_DETERMINISTIC", self.demo_mode)
+        self._demo_seed = env_int("DEMO_SEED", 7)
+        self._rng = random.Random(self._demo_seed) if self.deterministic else random.Random()
         
         # Latest telemetry point (for WebSockets)
         self._latest: Optional[Dict[str, Any]] = None
 
     def get_latest_telemetry(self) -> Optional[Dict[str, Any]]:
         return self._latest
+
+    def set_demo_mode(self, enabled: bool, deterministic: Optional[bool] = None, seed: Optional[int] = None) -> None:
+        """
+        Toggle demo mode at runtime without recreating the service.
+        """
+        if deterministic is None:
+            deterministic = enabled
+        self.demo_mode = bool(enabled)
+        self.deterministic = bool(deterministic)
+        if seed is not None:
+            self._demo_seed = int(seed)
+        self._rng = random.Random(self._demo_seed) if self.deterministic else random.Random()
+        if enabled:
+            self.gnn = None
 
     # -----------------------------
     # Trace Buffer Access
@@ -238,8 +259,13 @@ class DigitalTwinService:
         num_points = 60
         step_size = max(1, window_s // num_points)
 
-        # Seed based on minute resolution
-        seed_val = int(now.timestamp() / 60) 
+        # Seed based on minute resolution, unless demo-deterministic
+        if self.deterministic:
+            seed_val = int(self._demo_seed + window_s)
+            if end_ts and mode == "replay":
+                seed_val += int(now.timestamp())
+        else:
+            seed_val = int(now.timestamp() / 60)
         rng = random.Random(seed_val)
 
         # Determine start state for simulation
@@ -497,12 +523,12 @@ class DigitalTwinService:
         # (For this demo, we assume a fluctuating base load around 1000kW)
         base_load = 1000.0
         # Simple random fluctuation
-        current_load = base_load + random.uniform(-20, 20)
+        current_load = base_load + self._rng.uniform(-20, 20)
         
         # 2. Evolve Thermal State
         twin = ThermalTwin(self.therm_cfg, self.therm_state)
         # We step the twin forward by dt_s
-        twin.step(P_total_kw=current_load, dt_s=dt_s)
+        twin.step(P_it_kw=current_load, dt_s=dt_s)
         
         # Update latest telemetry cache (async to avoid blocking on GNN)
         self._latest = await self._compute_latest_telemetry_point_async(current_load)
@@ -524,8 +550,8 @@ class DigitalTwinService:
         # 1. Frequency (Synthesize simple noise/dip based on random)
         base_freq = 60.0
         # Occasional random dip logic (1% chance per second)
-        dip = (random.random() < 0.01)
-        freq = (base_freq - 0.15 + random.uniform(-0.02, 0.02)) if dip else (base_freq + random.uniform(-0.02, 0.02))
+        dip = (self._rng.random() < 0.01)
+        freq = (base_freq - 0.15 + self._rng.uniform(-0.02, 0.02)) if dip else (base_freq + self._rng.uniform(-0.02, 0.02))
         stress = 0.85 if dip else 0.10
         rocof = 0.0 # simplified for single point
         

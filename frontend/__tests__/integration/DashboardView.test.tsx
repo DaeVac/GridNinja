@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 vi.mock('@/lib/telemetry/useTelemetryWS', () => ({
     useTelemetryWS: () => ({
         status: 'open',
+        transport: 'ws',
         latest: {
             frequency_hz: 60.0,
             total_load_kw: 500.0,
@@ -26,32 +27,49 @@ vi.mock('@/app/components/ThermalVisualizer3D', () => ({
 vi.mock('../../components/LogoutButton', () => ({
     default: () => <button>Logout</button>
 }));
+// Mock DemoModeButton to avoid async effects in integration test
+vi.mock('@/app/components/DemoModeButton', () => ({
+    default: () => <div data-testid="demo-mode">Demo</div>
+}));
 
 describe('DashboardView', () => {
     beforeEach(() => {
         // Reset mocks
         vi.clearAllMocks();
 
-        global.fetch = vi.fn().mockImplementation(() =>
-            Promise.resolve({
+        global.fetch = vi.fn().mockImplementation((input: RequestInfo | URL) => {
+            const url = typeof input === "string" ? input : input.toString();
+            if (url.includes("/demo/status")) {
+                return Promise.resolve({
+                    ok: true,
+                    json: () => Promise.resolve({
+                        ok: true,
+                        demo_mode: false,
+                    }),
+                });
+            }
+            return Promise.resolve({
                 ok: true,
-                json: () => Promise.resolve({
-                    money_saved_usd: 1234.56,
-                    co2_avoided_kg: 88.8,
-                    unsafe_actions_prevented_total: 5,
-                    sla_penalty_usd: 0
-                })
-            })
-        ) as any;
+                json: () =>
+                    Promise.resolve({
+                        money_saved_usd: 1234.56,
+                        co2_avoided_kg: 88.8,
+                        unsafe_actions_prevented_total: 5,
+                        sla_penalty_usd: 0,
+                    }),
+            });
+        }) as any;
     });
 
     afterEach(() => {
         vi.restoreAllMocks();
     });
 
-    it('renders header with user info and live stats', () => {
+    it('renders header with user info and live stats', async () => {
         render(<DashboardView user={{ name: "Test User", picture: "/pic.jpg" }} />);
-        expect(screen.getByText('Test User')).toBeInTheDocument();
+        await waitFor(() => {
+            expect(screen.getByText('Test User')).toBeInTheDocument();
+        });
     });
 
     it('fetches and displays KPIs', async () => {

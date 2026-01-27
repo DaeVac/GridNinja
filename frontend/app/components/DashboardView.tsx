@@ -9,10 +9,13 @@ import LogoutButton from '../../components/LogoutButton';
 import dynamic from 'next/dynamic';
 import { KpiGrid } from '../../components/kpi/KpiGrid';
 import { KpiCardProps } from '../../components/kpi/KpiCard';
+import DemoModeButton from './DemoModeButton';
 
 // Backend API
 const API_BASE =
-    (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000").replace(/\/+$/, "");
+    "/api";
+const WS_BASE =
+    (process.env.NEXT_PUBLIC_WS_BASE_URL ?? "ws://localhost:8000").replace(/\/+$/, "");
 
 const DEMO_KPIS: KpiCardProps[] = [
     {
@@ -87,13 +90,14 @@ interface UserProfile {
 
 
 export default function DashboardView({ user }: { user: UserProfile }) {
-    const { status, latest } = useTelemetryWS();
+    const { status, transport, latest } = useTelemetryWS();
     const [kpis, setKpis] = React.useState<KpiCardProps[]>(DEMO_KPIS);
     const [loadingKpi, setLoadingKpi] = React.useState(true);
     const hasLoadedRef = React.useRef(false);
     const avatarSrc = user.picture ?? "/tempLogo.svg";
     const avatarAlt = user.name ? `${user.name} profile` : "Operator profile";
     const isLocalAvatar = avatarSrc.startsWith("/");
+    const lastTelemetryTs = latest?.ts ?? "n/a";
 
     // Fetch KPIs every 5s
     React.useEffect(() => {
@@ -222,7 +226,11 @@ export default function DashboardView({ user }: { user: UserProfile }) {
                                 <div className={clsx("w-2 h-2 rounded-full", status === 'open' ? "bg-[#E10600] animate-pulse" : "bg-current")} />
                                 {status === 'open' ? 'ONLINE' : status.toUpperCase()}
                             </div>
+                            <div className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-[#120805] border border-[#3A1A0A] text-[#FFE65C]">
+                                {(transport ?? "ws").toUpperCase()}
+                            </div>
                         </div>
+                        <DemoModeButton />
 
                         {/* Quick Stats */}
                         {latest && (
@@ -275,6 +283,13 @@ export default function DashboardView({ user }: { user: UserProfile }) {
             {/* --- Main Content --- */}
             <main className="flex-1 min-h-0 p-4 sm:p-6 relative overflow-y-auto scrollbar-twin">
                 <div className="w-full max-w-7xl mx-auto flex flex-col gap-6 pb-8">
+                    {/* Debug Banner */}
+                    <div className="bg-[#120805]/80 border border-[#3A1A0A] rounded-lg px-4 py-2 text-[10px] font-mono text-[#FFE65C] flex flex-wrap gap-3 shadow-sm">
+                        <span className="text-[#7A3A1A] uppercase tracking-[0.2em] font-semibold">Debug</span>
+                        <span>API: {API_BASE}</span>
+                        <span>WS: {WS_BASE}</span>
+                        <span>Last TS: {lastTelemetryTs}</span>
+                    </div>
                     {/* KPI Section */}
                     <section aria-labelledby="performance-metrics-title">
                         <h2 id="performance-metrics-title" className="text-lg font-semibold text-[#FFE65C] mb-3">

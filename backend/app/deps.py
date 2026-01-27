@@ -18,6 +18,7 @@ Pattern:
 from __future__ import annotations
 
 from functools import lru_cache
+from app.config import env_flag
 from app.services.digital_twin import DigitalTwinService
 
 # Optional services (safe if missing)
@@ -34,6 +35,11 @@ except Exception:
 
 @lru_cache(maxsize=1)
 def get_twin_service() -> DigitalTwinService:
-    carbon = CarbonService() if CarbonService is not None else None
-    gnn = GNNHeadroomService() if GNNHeadroomService is not None else None
+    demo_mode = env_flag("DEMO_MODE", False)
+    offline_mode = env_flag("OFFLINE_MODE", False) or env_flag("DEMO_OFFLINE", False)
+    gnn_enabled = env_flag("GNN_ENABLED", not (demo_mode or offline_mode))
+    carbon_enabled = env_flag("CARBON_ENABLED", True)
+
+    carbon = CarbonService() if CarbonService is not None and carbon_enabled else None
+    gnn = GNNHeadroomService() if GNNHeadroomService is not None and gnn_enabled else None
     return DigitalTwinService(gnn=gnn, carbon=carbon)

@@ -49,3 +49,8 @@ async def grid_predict(
     latest = latest_series[-1] 
 
     return grid.predict_node(node_id=node_id, latest_telemetry=latest)
+
+
+@router.get("/gnn/health")
+async def gnn_health():
+    return grid.get_gnn_health()

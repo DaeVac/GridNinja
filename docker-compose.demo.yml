@@ -3,6 +3,10 @@ services:
     environment:
       - ALLOWED_ORIGINS=http://localhost:3000
       - DEMO_MODE=true
+      - DEMO_DETERMINISTIC=true
+      - DEMO_SEED=7
+      - EXPLAINER_ENABLED=false
+      - GNN_ENABLED=true
       - LOG_DIR=/logs
       - LOG_LEVEL=INFO
       - DATABASE_URL=sqlite:////data/gridninja.db
@@ -21,8 +25,8 @@ services:
       dockerfile: Dockerfile.prod
     environment:
       - NODE_ENV=production
-      - NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
       - NEXT_PUBLIC_WS_BASE_URL=ws://localhost:8000
+      - BACKEND_INTERNAL_URL=http://backend:8000
     command: npm run start -- -H 0.0.0.0 -p 3000
     logging:
       driver: "json-file"

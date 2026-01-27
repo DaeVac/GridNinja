@@ -1,13 +1,29 @@
 import type { NextConfig } from "next";
 
-const nextConfig: NextConfig = {
-  /* config options here */
-};
+const backend =
+  process.env.BACKEND_INTERNAL_URL ||
+  process.env.NEXT_PUBLIC_API_BASE_URL ||
+  "http://localhost:8000";
 
-module.exports = {
+const nextConfig: NextConfig = {
   images: {
-    remotePatterns: [new URL('https://cdn.auth0.com/quantum-assets/dist/latest/logos/auth0/auth0-lockup-en-ondark.png')],
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "cdn.auth0.com",
+        pathname:
+          "/quantum-assets/dist/latest/logos/auth0/auth0-lockup-en-ondark.png",
+      },
+    ],
   },
-}
+  async rewrites() {
+    return [
+      {
+        source: "/api/:path*",
+        destination: `${backend}/:path*`,
+      },
+    ];
+  },
+};
 
 export default nextConfig;

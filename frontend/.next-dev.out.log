@@ -79,3 +79,116 @@
  GET /dashboard 200 in 364ms (compile: 187ms, proxy.ts: 5ms, render: 172ms)
 ✓ Compiled in 52ms
  GET /digital-twin 200 in 80ms (compile: 11ms, proxy.ts: 8ms, render: 61ms)
+ GET /dashboard 200 in 79ms (compile: 5ms, proxy.ts: 6ms, render: 68ms)
+ GET /digital-twin 200 in 227ms (compile: 15ms, proxy.ts: 18ms, render: 195ms)
+ GET /digital-twin 200 in 119ms (compile: 20ms, proxy.ts: 10ms, render: 90ms)
+ GET /dashboard 200 in 63ms (compile: 4ms, proxy.ts: 6ms, render: 53ms)
+ GET /digital-twin 200 in 74ms (compile: 6ms, proxy.ts: 5ms, render: 63ms)
+✓ Compiled in 281ms
+✓ Compiled in 38ms
+ GET /digital-twin 200 in 440ms (compile: 168ms, proxy.ts: 4ms, render: 268ms)
+ GET /dashboard 200 in 283ms (compile: 135ms, proxy.ts: 4ms, render: 144ms)
+ GET /digital-twin 200 in 56ms (compile: 4ms, proxy.ts: 5ms, render: 47ms)
+ GET /dashboard 200 in 57ms (compile: 5ms, proxy.ts: 6ms, render: 47ms)
+ GET /digital-twin 200 in 67ms (compile: 4ms, proxy.ts: 7ms, render: 56ms)
+✓ Compiled in 59ms
+ GET /dashboard 200 in 381ms (compile: 183ms, proxy.ts: 7ms, render: 191ms)
+ GET /digital-twin 200 in 474ms (compile: 157ms, proxy.ts: 6ms, render: 310ms)
+ GET /dashboard 200 in 53ms (compile: 4ms, proxy.ts: 4ms, render: 44ms)
+✓ Compiled in 84ms
+✓ Compiled in 147ms
+ GET /dashboard 200 in 471ms (compile: 220ms, proxy.ts: 6ms, render: 245ms)
+ GET /digital-twin 200 in 570ms (compile: 237ms, proxy.ts: 5ms, render: 328ms)
+ GET /dashboard 200 in 60ms (compile: 5ms, proxy.ts: 6ms, render: 49ms)
+ GET /digital-twin 200 in 53ms (compile: 3ms, proxy.ts: 4ms, render: 46ms)
+ GET /dashboard 200 in 74ms (compile: 5ms, proxy.ts: 7ms, render: 61ms)
+ GET /digital-twin 200 in 68ms (compile: 5ms, proxy.ts: 4ms, render: 60ms)
+✓ Compiled in 37ms
+ GET /dashboard 200 in 293ms (compile: 135ms, proxy.ts: 5ms, render: 153ms)
+ GET /digital-twin 200 in 397ms (compile: 136ms, proxy.ts: 5ms, render: 256ms)
+ GET /dashboard 200 in 54ms (compile: 4ms, proxy.ts: 5ms, render: 46ms)
+ GET /digital-twin 200 in 65ms (compile: 4ms, proxy.ts: 5ms, render: 56ms)
+ GET /dashboard 200 in 57ms (compile: 4ms, proxy.ts: 6ms, render: 48ms)
+ GET /digital-twin 200 in 69ms (compile: 4ms, proxy.ts: 6ms, render: 59ms)
+ GET /digital-twin 200 in 55ms (compile: 3ms, proxy.ts: 4ms, render: 47ms)
+ GET /dashboard 200 in 49ms (compile: 3ms, proxy.ts: 4ms, render: 41ms)
+ GET /dashboard 200 in 49ms (compile: 3ms, proxy.ts: 4ms, render: 42ms)
+ GET /digital-twin 200 in 58ms (compile: 3ms, proxy.ts: 5ms, render: 51ms)
+✓ Compiled in 72ms
+ GET /dashboard 200 in 57ms (compile: 7ms, proxy.ts: 7ms, render: 44ms)
+ GET /dashboard 200 in 50ms (compile: 4ms, proxy.ts: 3ms, render: 42ms)
+ GET /digital-twin 200 in 403ms (compile: 141ms, proxy.ts: 4ms, render: 257ms)
+ GET /digital-twin 200 in 67ms (compile: 5ms, proxy.ts: 6ms, render: 57ms)
+ GET /dashboard 200 in 47ms (compile: 3ms, proxy.ts: 4ms, render: 41ms)
+✓ Compiled in 51ms
+ GET /digital-twin 200 in 86ms (compile: 10ms, proxy.ts: 8ms, render: 67ms)
+ GET /dashboard 200 in 609ms (compile: 279ms, proxy.ts: 8ms, render: 322ms)
+ GET /digital-twin 200 in 145ms (compile: 6ms, proxy.ts: 5ms, render: 133ms)
+ GET /dashboard 200 in 56ms (compile: 4ms, proxy.ts: 4ms, render: 48ms)
+ GET /digital-twin 200 in 72ms (compile: 5ms, proxy.ts: 5ms, render: 62ms)
+ GET /digital-twin 200 in 57ms (compile: 4ms, proxy.ts: 4ms, render: 49ms)
+ GET /dashboard 200 in 54ms (compile: 6ms, proxy.ts: 4ms, render: 44ms)
+ GET /digital-twin 200 in 61ms (compile: 3ms, proxy.ts: 4ms, render: 53ms)
+ GET /dashboard 200 in 54ms (compile: 4ms, proxy.ts: 5ms, render: 46ms)
+ GET /digital-twin 200 in 64ms (compile: 4ms, proxy.ts: 5ms, render: 55ms)
+ GET /dashboard 200 in 59ms (compile: 4ms, proxy.ts: 6ms, render: 49ms)
+ GET /digital-twin 200 in 76ms (compile: 5ms, proxy.ts: 6ms, render: 66ms)
+▲ Next.js 16.1.4 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://10.3.41.27:3000
+
+✓ Starting...
+✓ Ready in 1708ms
+ GET /digital-twin 200 in 1609ms (compile: 1031ms, proxy.ts: 192ms, render: 387ms)
+✓ Compiled in 46ms
+✓ Compiled in 67ms
+✓ Compiled in 152ms
+ GET /dashboard 200 in 311ms (compile: 181ms, proxy.ts: 6ms, render: 124ms)
+ GET /digital-twin 200 in 505ms (compile: 162ms, proxy.ts: 5ms, render: 338ms)
+ GET /dashboard 200 in 70ms (compile: 5ms, proxy.ts: 4ms, render: 61ms)
+ GET /digital-twin 200 in 62ms (compile: 5ms, proxy.ts: 5ms, render: 52ms)
+ GET /dashboard 200 in 56ms (compile: 5ms, proxy.ts: 5ms, render: 45ms)
+ GET /digital-twin 200 in 89ms (compile: 5ms, proxy.ts: 5ms, render: 79ms)
+ GET /dashboard 200 in 60ms (compile: 4ms, proxy.ts: 5ms, render: 52ms)
+ GET /digital-twin 200 in 69ms (compile: 7ms, proxy.ts: 6ms, render: 56ms)
+ GET /dashboard 200 in 85ms (compile: 8ms, proxy.ts: 7ms, render: 70ms)
+ GET /dashboard 200 in 49ms (compile: 4ms, proxy.ts: 4ms, render: 41ms)
+
+Could not open DashboardView.tsx in the editor.
+The editor process exited with an error: (code 9).
+
+To set up the editor integration, add something like REACT_EDITOR=atom to the .env.local file in your project folder and restart the development server.
+
+
+Could not open DashboardView.tsx in the editor.
+The editor process exited with an error: (code 9).
+
+To set up the editor integration, add something like REACT_EDITOR=atom to the .env.local file in your project folder and restart the development server.
+
+ GET /digital-twin 200 in 126ms (compile: 13ms, proxy.ts: 9ms, render: 104ms)
+ GET /dashboard 200 in 178ms (compile: 11ms, proxy.ts: 9ms, render: 158ms)
+ GET /digital-twin 200 in 64ms (compile: 5ms, proxy.ts: 4ms, render: 56ms)
+ GET /dashboard 200 in 54ms (compile: 5ms, proxy.ts: 4ms, render: 46ms)
+ GET /digital-twin 200 in 60ms (compile: 4ms, proxy.ts: 5ms, render: 51ms)
+ GET /dashboard 200 in 67ms (compile: 14ms, proxy.ts: 4ms, render: 49ms)
+ GET /digital-twin 200 in 63ms (compile: 4ms, proxy.ts: 7ms, render: 52ms)
+ GET /dashboard 200 in 80ms (compile: 8ms, proxy.ts: 4ms, render: 68ms)
+ GET /digital-twin 200 in 162ms (compile: 14ms, proxy.ts: 4ms, render: 143ms)
+ GET /dashboard 200 in 172ms (compile: 7ms, proxy.ts: 9ms, render: 156ms)
+ GET /digital-twin 200 in 203ms (compile: 18ms, proxy.ts: 9ms, render: 176ms)
+ GET /dashboard 200 in 156ms (compile: 11ms, proxy.ts: 5ms, render: 140ms)
+ GET /digital-twin 200 in 96ms (compile: 7ms, proxy.ts: 6ms, render: 84ms)
+ GET /dashboard 200 in 79ms (compile: 5ms, proxy.ts: 7ms, render: 67ms)
+ GET /digital-twin 200 in 67ms (compile: 5ms, proxy.ts: 4ms, render: 58ms)
+ GET /dashboard 200 in 83ms (compile: 10ms, proxy.ts: 5ms, render: 68ms)
+ GET /digital-twin 200 in 78ms (compile: 7ms, proxy.ts: 5ms, render: 67ms)
+ GET /dashboard 200 in 75ms (compile: 13ms, proxy.ts: 5ms, render: 58ms)
+ GET /digital-twin 200 in 84ms (compile: 6ms, proxy.ts: 6ms, render: 71ms)
+ GET /dashboard 200 in 68ms (compile: 6ms, proxy.ts: 6ms, render: 56ms)
+ GET /digital-twin 200 in 69ms (compile: 4ms, proxy.ts: 6ms, render: 59ms)
+ GET /dashboard 200 in 65ms (compile: 9ms, proxy.ts: 5ms, render: 51ms)
+ GET /digital-twin 200 in 240ms (compile: 88ms, proxy.ts: 9ms, render: 143ms)
+ GET /dashboard 200 in 229ms (compile: 72ms, proxy.ts: 11ms, render: 146ms)
+ GET /digital-twin 200 in 108ms (compile: 17ms, proxy.ts: 5ms, render: 85ms)
+ GET /digital-twin 200 in 87ms (compile: 10ms, proxy.ts: 8ms, render: 69ms)
+[?25h

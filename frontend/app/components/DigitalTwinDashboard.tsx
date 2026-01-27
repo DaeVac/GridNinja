@@ -11,11 +11,13 @@ import {
     Activity, Zap, AlertTriangle, TrendingUp, Flame, Battery, Gauge, CloudRain
 } from 'lucide-react';
 import { useTelemetryWS } from '@/lib/telemetry/useTelemetryWS';
+import DemoModeButton from './DemoModeButton';
 
 type TimeRangeKey = '15m' | '1h' | '6h';
 
-const API_BASE =
-    (process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000').replace(/\/+$/, '');
+const API_BASE = "/api";
+const WS_BASE =
+    (process.env.NEXT_PUBLIC_WS_BASE_URL ?? 'ws://localhost:8000').replace(/\/+$/, '');
 
 const rangeToWindowS: Record<TimeRangeKey, number> = {
     '15m': 900,
@@ -49,7 +51,7 @@ export default function DigitalTwinDashboard() {
     const [pulseIntensity, setPulseIntensity] = useState(1);
 
     // Real-time telemetry over WS
-    const { status: wsStatus, latest, buffer } = useTelemetryWS(180);
+    const { status: wsStatus, transport, latest, buffer } = useTelemetryWS(180);
 
     // KPI rollups
     const [kpi, setKpi] = useState<KpiSummary | null>(null);
@@ -229,6 +231,8 @@ export default function DigitalTwinDashboard() {
         wsStatus === 'open' ? 'Live Sync Active' :
             wsStatus === 'connecting' ? 'Connecting...' :
                 wsStatus === 'closed' ? 'Offline' : 'WS Error';
+    const transportLabel = (transport ?? 'ws').toUpperCase();
+    const lastTelemetryTs = latest?.ts ?? 'n/a';
 
     return (
         <div className="flex flex-col h-screen w-full bg-black text-slate-100 font-sans overflow-hidden">
@@ -275,7 +279,11 @@ export default function DigitalTwinDashboard() {
                             }}
                         />
                         <span className="text-sm text-[#FFE65C]">{liveLabel}</span>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-[#120805] border border-[#3A1A0A] text-[#FFE65C]">
+                            {transportLabel}
+                        </span>
                     </div>
+                    <DemoModeButton />
                 </div>
             </header>
 
@@ -289,6 +297,13 @@ export default function DigitalTwinDashboard() {
                 </div>
 
                 <div className="relative z-10 max-w-7xl mx-auto space-y-6">
+                    {/* Debug Banner */}
+                    <div className="bg-[#120805]/80 border border-[#3A1A0A] rounded-lg px-4 py-2 text-[10px] font-mono text-[#FFE65C] flex flex-wrap gap-3 shadow-sm">
+                        <span className="text-[#7A3A1A] uppercase tracking-[0.2em] font-semibold">Debug</span>
+                        <span>API: {API_BASE}</span>
+                        <span>WS: {WS_BASE}</span>
+                        <span>Last TS: {lastTelemetryTs}</span>
+                    </div>
 
                     {/* A. PHYSICAL STATE */}
                     <div>

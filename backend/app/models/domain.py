@@ -52,7 +52,7 @@ class ThermalTwinConfig(BaseModel):
     T_ambient: float = 20.0
 
     # Cooling power ramp limit (kW/s)
-    Cooling_Ramp_Max: float = 5.0
+    Cooling_Ramp_Max: float = 150.0
 
     # Cooling efficiency multiplier (0..1)
     Cooling_Efficiency: float = 0.80

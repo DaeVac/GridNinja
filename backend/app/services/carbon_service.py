@@ -52,7 +52,7 @@ class CarbonService:
 
     def __init__(self, cfg: CarbonConfig | None = None):
         self.cfg = cfg or CarbonConfig()
-        random.seed(self.cfg.seed)
+        self.rng = random.Random(self.cfg.seed)
 
     def get_intensity_g_per_kwh(self, ts: datetime) -> float:
         """
@@ -66,7 +66,7 @@ class CarbonService:
         phase = (hour - 12.0) / 24.0 * 2.0 * math.pi
         daily = math.sin(phase)  # [-1, 1]
 
-        noise = random.uniform(-1.0, 1.0) * self.cfg.noise_amp
+        noise = self.rng.uniform(-1.0, 1.0) * self.cfg.noise_amp
 
         intensity = self.cfg.base_g_per_kwh + daily * self.cfg.daily_amp + noise
         return float(max(150.0, min(850.0, intensity)))
@@ -82,5 +82,5 @@ class CarbonService:
             price = self.cfg.base_price_usd_per_kwh
 
         # tiny noise to avoid flat lines
-        price += random.uniform(-0.003, 0.003)
+        price += self.rng.uniform(-0.003, 0.003)
         return float(max(0.05, min(0.40, price)))

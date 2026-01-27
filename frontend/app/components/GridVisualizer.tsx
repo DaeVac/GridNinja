@@ -42,8 +42,8 @@ interface PredictionResponse {
     debug?: Record<string, number>;
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
-const CLEAN_API_BASE = API_BASE.replace(/\/+$/, ""); // Remove trailing slashes
+const API_BASE = "/api";
+const CLEAN_API_BASE = API_BASE; // already clean
 
 // --- Custom Node rendering (as a label component) ---
 const NodeIcon = ({ kind, className }: { kind: GridNodeKind; className?: string }) => {
@@ -115,12 +115,11 @@ export default function GridVisualizer({ telemetry }: GridVisualizerProps) {
             const P_site_kw = telemetry?.total_load_kw ?? 50000;
             const grid_headroom_kw = prediction?.safe_shift_kw ?? 2000;
 
-            const url = new URL(`${CLEAN_API_BASE}/decision/latest`);
-            url.searchParams.set("deltaP_request_kw", String(requestedKw));
-            url.searchParams.set("P_site_kw", String(P_site_kw));
-            url.searchParams.set("grid_headroom_kw", String(grid_headroom_kw));
-
-            const res = await fetch(url.toString());
+            const params = new URLSearchParams();
+            params.set("deltaP_request_kw", String(requestedKw));
+            params.set("P_site_kw", String(P_site_kw));
+            params.set("grid_headroom_kw", String(grid_headroom_kw));
+            const res = await fetch(`${CLEAN_API_BASE}/decision/latest?${params.toString()}`);
             if (!res.ok) return;
             const data = await res.json();
             setLastDecision(data);
@@ -251,10 +250,28 @@ export default function GridVisualizer({ telemetry }: GridVisualizerProps) {
         predAbortRef.current = controller;
 
         try {
-            const res = await fetch(`${CLEAN_API_BASE}/grid/predict?node_id=${node.id}`, {
+            const cleanBase = CLEAN_API_BASE.replace(/\/+$/, "");
+            const res = await fetch(`${cleanBase}/grid/predict?node_id=${node.id}`, {
                 signal: controller.signal
             });
+            if (!res.ok) {
+                const err = await res.json().catch(() => null);
+                console.error("Prediction failed:", res.status, err);
+                setPrediction(null);
+                setLoadingPred(false);
+                return;
+            }
             const data = await res.json();
+            if (
+                typeof data?.safe_shift_kw !== "number" ||
+                typeof data?.confidence !== "number" ||
+                typeof data?.reason_code !== "string"
+            ) {
+                console.error("Malformed prediction response:", data);
+                setPrediction(null);
+                setLoadingPred(false);
+                return;
+            }
             setPrediction(data);
         } catch (err: any) {
             if (err.name !== 'AbortError') {
@@ -336,7 +353,10 @@ export default function GridVisualizer({ telemetry }: GridVisualizerProps) {
                             <div className="bg-[#0B0705] border border-[#3A1A0A] rounded-lg p-4">
                                 <div className="text-xs text-[#7A3A1A] uppercase tracking-[0.2em] mb-2">Safe Shift Headroom</div>
                                 <div className="text-3xl font-bold text-[#FFB800]">
-                                    {prediction.safe_shift_kw.toFixed(0)} <span className="text-sm font-normal text-[#7A3A1A]">kW</span>
+                                    {typeof prediction.safe_shift_kw === "number"
+                                        ? prediction.safe_shift_kw.toFixed(0)
+                                        : "—"}{" "}
+                                    <span className="text-sm font-normal text-[#7A3A1A]">kW</span>
                                 </div>
                                 <div className="text-xs text-[#FFE65C] mt-2 flex items-center gap-1">
                                     <Zap className="w-3 h-3" />

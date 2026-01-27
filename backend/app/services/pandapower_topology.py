@@ -20,7 +20,12 @@ from __future__ import annotations
 from collections import deque, defaultdict
 from typing import Dict, List, Tuple, Optional
 
-import pandapower.networks as pn
+try:
+    import pandapower.networks as pn
+    HAS_PANDAPOWER = True
+except Exception:
+    pn = None  # type: ignore
+    HAS_PANDAPOWER = False
 
 from app.schemas.grid import GridTopologyResponse, GridNode, GridEdge
 
@@ -35,6 +40,8 @@ class PandapowerTopology:
     """
 
     def __init__(self):
+        if not HAS_PANDAPOWER:
+            raise RuntimeError("pandapower is not installed")
         # Cache the network structure to avoid rebuilding heavily
         self.net = pn.case33bw()  # IEEE 33-bus Baran & Wu case
 

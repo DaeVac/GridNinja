@@ -95,7 +95,9 @@ class ThermalTwin:
         Also includes cooling actuator lag (ramp rate limit).
         """
         # 1) Cooling response with ramp limit
-        target_cooling_kw = float(max(0.0, P_it_kw))  # simple target = match IT load
+        # Target cooling should offset IT load after efficiency losses:
+        # cooling_kw * efficiency ~= P_it_kw
+        target_cooling_kw = float(max(0.0, P_it_kw) / max(self.cfg.Cooling_Efficiency, 1e-6))
         delta_cool = target_cooling_kw - self.state.P_cool_kw
 
         max_change = self.cfg.Cooling_Ramp_Max * float(dt_s)
