@@ -141,8 +141,8 @@ async def run_demo_scenario(name: str) -> DecisionResponse:
 async def reset_demo_state() -> Dict[str, Any]:
     _require_demo_mode()
     svc = get_twin_service()
-    svc.therm_state.T_c = 42.0
-    svc.therm_state.P_cool_kw = 800.0
+    svc.therm_state.T_c = 27.0
+    svc.therm_state.P_cool_kw = 250.0
     return {"ok": True, "T_c": svc.therm_state.T_c, "P_cool_kw": svc.therm_state.P_cool_kw}
 
 

@@ -182,7 +182,8 @@ class DigitalTwinService:
     ):
         # State
         self.therm_cfg = ThermalTwinConfig()
-        self.therm_state = ThermalTwinState(T_c=42.0, P_cool_kw=800.0)
+        # Start in a realistic steady-state range for demos.
+        self.therm_state = ThermalTwinState(T_c=27.0, P_cool_kw=250.0)
         
         # Trace Buffer
         self.trace = deque(maxlen=600)
@@ -356,7 +357,8 @@ class DigitalTwinService:
                 "frequency_hz": float(freq),
                 "rocof_hz_s": float(rocof),
                 "stress_score": float(stress),
-                "total_load_kw": float(it_load),
+                "it_load_kw": float(it_load),
+                "total_load_kw": float(it_load + cooling),
                 "safe_shift_kw": float(safe_shift),
                 "carbon_g_per_kwh": float(carbon_val),
                 "rack_temp_c": float(temp),
@@ -588,7 +590,8 @@ class DigitalTwinService:
             "frequency_hz": float(freq),
             "rocof_hz_s": float(rocof),
             "stress_score": float(stress),
-            "total_load_kw": float(current_load),
+            "it_load_kw": float(current_load),
+            "total_load_kw": float(current_load + self.therm_state.P_cool_kw),
             "safe_shift_kw": float(safe_shift),
             "carbon_g_per_kwh": float(carbon_val),
             "rack_temp_c": float(self.therm_state.T_c),

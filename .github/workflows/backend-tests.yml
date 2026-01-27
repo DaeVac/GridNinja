@@ -27,6 +27,11 @@ jobs:
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
         pip install httpx pytest pytest-asyncio
 
+    - name: Run Cooling Control Tests
+      run: |
+        export PYTHONPATH=$PYTHONPATH:$(pwd)
+        pytest tests/physics/test_cooling_control.py -q
+
     - name: Run Tests
       # Run unit and integration tests.
       # Note: Integration tests use TestClient which mimics API without spinning up a real server port.

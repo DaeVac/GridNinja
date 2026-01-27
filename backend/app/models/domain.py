@@ -51,11 +51,26 @@ class ThermalTwinConfig(BaseModel):
     # CRAC supply / ambient reference (°C)
     T_ambient: float = 20.0
 
+    # Minimum rack temperature floor to prevent unrealistic negative drift
+    T_min: float = 18.0
+
     # Cooling power ramp limit (kW/s)
     Cooling_Ramp_Max: float = 150.0
 
-    # Cooling efficiency multiplier (0..1)
-    Cooling_Efficiency: float = 0.80
+    # Cooling COP (heat_removed_kw per electrical_kw)
+    # Typical data center COP ~= 2.0 - 4.0
+    Cooling_COP: float = 4.0
+
+    # Temperature control targets (for efficiency)
+    T_setpoint: float = 30.0
+    T_deadband: float = 0.5
+
+    # Cooling bounds (electrical kW)
+    Cooling_Min_KW: float = 50.0
+    Cooling_Max_KW: float = 2000.0
+
+    # Proportional gain: extra heat removal per °C above setpoint
+    Kp_temp_kw_per_c: float = 80.0
 
     # Signed deltaP_request_kw engineering limits.
     # Positive = export (reduce grid import), negative = import (increase load).
@@ -171,6 +186,7 @@ class TelemetryTimeseriesPoint(BaseModel):
     rocof_hz_s: float
     stress_score: float
 
+    it_load_kw: float
     total_load_kw: float
     safe_shift_kw: float
 

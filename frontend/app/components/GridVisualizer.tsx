@@ -91,7 +91,7 @@ export default function GridVisualizer({ telemetry }: GridVisualizerProps) {
     const [explainCache, setExplainCache] = useState<Record<string, string>>({});
 
     // Optimization: Only update edges when stress logic flips
-    const lastStressRef = useRef<boolean>(false);
+    const lastStressRef = useRef<boolean | null>(null);
 
     // Abort controller for fetch
     const predAbortRef = useRef<AbortController | null>(null);
@@ -216,20 +216,35 @@ export default function GridVisualizer({ telemetry }: GridVisualizerProps) {
     useEffect(() => {
         if (!telemetry) return;
 
-        const isStressNow = telemetry.frequency_hz < 59.95;
+        const freq = typeof telemetry.frequency_hz === 'number' ? telemetry.frequency_hz : 60.0;
+
+        // Simple threshold (your version):
+        // const isStressNow = freq < 59.95;
+
+        // Better: hysteresis to prevent flicker around the boundary
+        const STRESS_ON = 59.95;
+        const STRESS_OFF = 59.97;
+
+        const prev = lastStressRef.current;
+        const isStressNow =
+            prev === null
+                ? freq < STRESS_ON
+                : prev
+                    ? !(freq > STRESS_OFF) // if stressed, stay stressed until we recover above OFF
+                    : freq < STRESS_ON;    // if healthy, only enter stress below ON
 
         // Only trigger React state update if status logic changed
-        if (isStressNow !== lastStressRef.current) {
+        if (prev === null || isStressNow !== prev) {
             lastStressRef.current = isStressNow;
 
             setEdges((eds) =>
                 eds.map((e) => ({
                     ...e,
-                    animated: isStressNow,
+                    animated: true, // ALWAYS TRUE
                     style: {
-                        ...e.style,
-                        stroke: isStressNow ? '#ef4444' : '#999',
-                        strokeWidth: isStressNow ? 3 : 1.5,
+                        ...(e.style ?? {}),
+                        stroke: isStressNow ? '#ef4444' : '#10b981',
+                        strokeWidth: isStressNow ? 3 : 2,
                     }
                 }))
             );

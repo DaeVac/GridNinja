@@ -220,8 +220,10 @@ def build_ramp_plan(
                 )
 
             # Signed deltaP: positive reduces grid import, so subtract from site load.
-            P_total_kw = float(P_site_kw) - float(next_delta)
-            pred = twin.predict(P_total_kw, float(dt_s))
+            # Convert site load -> IT load by removing cooling draw from the current thermal state.
+            P_site_step_kw = float(P_site_kw) - float(next_delta)
+            P_it_kw = max(P_site_step_kw - float(twin.state.P_cool_kw), 0.0)
+            pred = twin.predict(P_it_kw, float(dt_s))
 
             # Battery wear proxy
             throughput_kw = abs(next_delta) + abs(pred["cooling_kw_next"] - twin.state.P_cool_kw)
@@ -364,7 +366,7 @@ def build_ramp_plan(
             )
 
             # Commit state + delta
-            twin.step(P_total_kw, float(dt_s))
+            twin.step(P_it_kw, float(dt_s))
             current_delta = float(next_delta)
 
         return True, step_rows, cap_loss_accum
@@ -427,7 +429,9 @@ def build_ramp_plan(
                     # Probing simulation to get exact temp
                     sim_state = ThermalTwinState(T_c=float(state.T_c), P_cool_kw=float(state.P_cool_kw))
                     twin = ThermalTwin(cfg=cfg, state=sim_state)
-                    pred = twin.predict(float(P_site_kw) - float(deltaP_cap), float(dt_s))
+                    P_site_step_kw = float(P_site_kw) - float(deltaP_cap)
+                    P_it_kw = max(P_site_step_kw - float(twin.state.P_cool_kw), 0.0)
+                    pred = twin.predict(P_it_kw, float(dt_s))
                     val = float(pred["rack_temp_c_next"])
                     thresh = float(cfg.T_max)
 

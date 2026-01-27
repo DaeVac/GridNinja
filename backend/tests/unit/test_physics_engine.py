@@ -21,12 +21,12 @@ def test_predict_structure():
 @pytest.mark.parametrize("scenario", [
     {
         "id": "steady_state",
-        "T_init": 30.0, "P_cool_init": 100.0, "P_load": 100.0, "dt": 1.0,
-        "desc": "Load matches cooling -> Temp should barely change (only passive drift)"
+        "T_init": 30.0, "P_cool_init": 20.0, "P_load": 100.0, "dt": 1.0,
+        "desc": "Cooling target matches heat removal -> Temp should barely change"
     },
     {
         "id": "high_load_heat_up",
-        "T_init": 30.0, "P_cool_init": 100.0, "P_load": 500.0, "dt": 10.0,
+        "T_init": 30.0, "P_cool_init": 0.0, "P_load": 500.0, "dt": 10.0,
         "desc": "Load >> Cooling -> Temp should rise significantly"
     },
     {
@@ -36,7 +36,15 @@ def test_predict_structure():
     },
 ])
 def test_thermal_scenarios(scenario):
-    cfg = ThermalTwinConfig(Cooling_Ramp_Max=5.0) # 5kW/s max ramp
+    cfg = ThermalTwinConfig(
+        Cooling_Ramp_Max=5.0,  # 5kW/s max ramp
+        Cooling_COP=4.0,
+        Cooling_Min_KW=0.0,
+        Cooling_Max_KW=5000.0,
+        T_setpoint=0.0,
+        T_deadband=0.1,
+        Kp_temp_kw_per_c=0.0,
+    )
     state = ThermalTwinState(
         T_c=scenario["T_init"], 
         P_cool_kw=scenario["P_cool_init"]
@@ -60,7 +68,15 @@ def test_thermal_scenarios(scenario):
 
 def test_thermal_runaway():
     """Ensure it flags thermal failure correctly."""
-    cfg = ThermalTwinConfig(T_max=50.0)
+    cfg = ThermalTwinConfig(
+        T_max=50.0,
+        Cooling_COP=3.0,
+        Cooling_Min_KW=0.0,
+        Cooling_Max_KW=200.0,
+        T_setpoint=0.0,
+        T_deadband=0.1,
+        Kp_temp_kw_per_c=0.0,
+    )
     state = ThermalTwinState(T_c=49.0, P_cool_kw=100.0)
     twin = ThermalTwin(cfg, state)
     

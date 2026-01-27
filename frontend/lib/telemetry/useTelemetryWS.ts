@@ -7,6 +7,7 @@ export type TelemetryPoint = {
     frequency_hz: number;
     rocof_hz_s: number;
     stress_score: number;
+    it_load_kw?: number;
     total_load_kw: number;
     safe_shift_kw: number;
     carbon_g_per_kwh: number;

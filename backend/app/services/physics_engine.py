@@ -90,23 +90,40 @@ class ThermalTwin:
           dT/dt = (P_in - P_out) / C(T)
 
         P_in  = IT load (kW)
-        P_out = passive loss K*(T - Tamb) + active cooling (eff * P_cool)
+        P_out = passive loss K*(T - Tamb) + active cooling (COP * P_cool)
 
         Also includes cooling actuator lag (ramp rate limit).
         """
-        # 1) Cooling response with ramp limit
-        # Target cooling should offset IT load after efficiency losses:
-        # cooling_kw * efficiency ~= P_it_kw
-        target_cooling_kw = float(max(0.0, P_it_kw) / max(self.cfg.Cooling_Efficiency, 1e-6))
+        # 1) Passive heat rejection (kW)
+        q_passive = self.cfg.K_transfer * (self.state.T_c - self.cfg.T_ambient)
+
+        # 2) Base heat that still must be removed mechanically (kW)
+        heat_to_remove_kw = max(0.0, float(P_it_kw) - float(q_passive))
+
+        # 3) Temperature-aware target: only "pay" for cooling when you need it
+        temp_err = float(self.state.T_c) - float(self.cfg.T_setpoint)
+        if temp_err <= -float(self.cfg.T_deadband):
+            target_heat_removed_kw = heat_to_remove_kw * 0.10  # coast
+        elif abs(temp_err) <= float(self.cfg.T_deadband):
+            target_heat_removed_kw = heat_to_remove_kw * 0.30  # maintain
+        else:
+            target_heat_removed_kw = heat_to_remove_kw + (float(self.cfg.Kp_temp_kw_per_c) * temp_err)
+
+        # 4) Convert heat removal target -> electrical cooling using COP
+        cop = max(1e-6, float(self.cfg.Cooling_COP))
+        target_cooling_kw = target_heat_removed_kw / cop
+
+        # 5) Clamp and ramp-limit the actuator
+        target_cooling_kw = max(float(self.cfg.Cooling_Min_KW), min(float(self.cfg.Cooling_Max_KW), target_cooling_kw))
         delta_cool = target_cooling_kw - self.state.P_cool_kw
 
         max_change = self.cfg.Cooling_Ramp_Max * float(dt_s)
         delta_cool_clamped = max(-max_change, min(max_change, delta_cool))
         next_cooling_kw = self.state.P_cool_kw + delta_cool_clamped
+        next_cooling_kw = max(float(self.cfg.Cooling_Min_KW), min(float(self.cfg.Cooling_Max_KW), next_cooling_kw))
 
-        # 2) Passive + active dissipation
-        q_passive = self.cfg.K_transfer * (self.state.T_c - self.cfg.T_ambient)  # kW
-        q_active = next_cooling_kw * self.cfg.Cooling_Efficiency               # kW
+        # 6) Active heat removal (kW)
+        q_active = next_cooling_kw * cop
 
         # 3) Net heat flow (kW = kJ/s)
         net_heat_kw = float(P_it_kw) - (float(q_passive) + float(q_active))
@@ -115,6 +132,8 @@ class ThermalTwin:
         C_mass = self._dynamic_C_mass_kj_per_c()  # kJ/°C
         delta_T = (net_heat_kw * float(dt_s)) / C_mass
         next_temp_c = self.state.T_c + float(delta_T)
+        # Floor only after integration (avoid pinning/teleporting each step).
+        next_temp_c = max(float(self.cfg.T_min), float(next_temp_c))
 
         thermal_ok = next_temp_c < self.cfg.T_max
 
@@ -135,9 +154,9 @@ class ThermalTwin:
             return 0.0
 
         # If temperature rises, more passive loss increases ~K*ΔT.
-        # Convert buffer to "extra heat removable" ≈ K*buffer + eff*cooling_margin.
-        # Here we assume cooling can keep up by ~eff*cooling_kw (bounded).
-        headroom = (self.cfg.K_transfer * buffer_c) + (next_cooling_kw * self.cfg.Cooling_Efficiency * 0.1)
+        # Convert buffer to "extra heat removable" ≈ K*buffer + COP*cooling_margin.
+        # Here we assume cooling can keep up by ~COP*cooling_kw (bounded).
+        headroom = (self.cfg.K_transfer * buffer_c) + (next_cooling_kw * self.cfg.Cooling_COP * 0.1)
         return float(max(0.0, headroom))
 
     def step(self, P_it_kw: float, dt_s: float) -> Dict[str, float]:

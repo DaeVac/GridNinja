@@ -9,8 +9,8 @@ from app.models.domain import RuleStatus
 
 @pytest.fixture
 def base_state():
-    # P_cool=1250 * 0.8 efficacy = 1000kW cooling. Matches 1000kW site load.
-    return ThermalTwinState(T_c=40.0, P_cool_kw=1250.0)
+    # COP 4.0 => ~250kW cooling for 1000kW IT load (reasonable steady state).
+    return ThermalTwinState(T_c=40.0, P_cool_kw=250.0)
 
 @pytest.fixture
 def base_cfg():

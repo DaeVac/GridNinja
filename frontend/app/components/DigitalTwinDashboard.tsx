@@ -25,6 +25,8 @@ const rangeToWindowS: Record<TimeRangeKey, number> = {
     '6h': 21600,
 };
 
+const COOLING_COP = 4.0;
+
 type KpiSummary = {
     money_saved_usd: number;
     co2_avoided_kg: number;
@@ -164,14 +166,22 @@ export default function DigitalTwinDashboard() {
 
     // Derived efficiency metrics
     const efficiencyMetrics = useMemo(() => {
-        const loadKw = latest?.total_load_kw ?? 1000;
+        const totalLoadKw = latest?.total_load_kw ?? 1000;
         const coolingKw = latest?.cooling_kw ?? 800;
-        const pue = (loadKw + coolingKw) / Math.max(loadKw, 1);
+        const itLoadKw = latest?.it_load_kw ?? totalLoadKw;
+        const otherKw = 0;
+        const facilityKw = itLoadKw + coolingKw + otherKw;
+        const pue = facilityKw / Math.max(itLoadKw, 1e-6);
+        const coolingTargetKw = itLoadKw / Math.max(COOLING_COP, 1e-6);
+        const coolingStatus =
+            coolingKw > coolingTargetKw * 1.15 ? 'critical' :
+                coolingKw > coolingTargetKw * 1.05 ? 'warning' :
+                    'normal';
         const losses = (latest?.stress_score ?? 0.1) * 100;
 
         return [
-            { metric: 'PUE', value: Number(pue.toFixed(2)), target: 1.20, status: pue > 1.35 ? 'warning' : 'normal' },
-            { metric: 'Cooling kW', value: Number(coolingKw.toFixed(0)), target: 750, status: coolingKw > 950 ? 'critical' : 'normal' },
+            { metric: 'PUE', value: Number(pue.toFixed(2)), target: 1.35, status: pue > 1.6 ? 'warning' : 'normal' },
+            { metric: 'Cooling kW', value: Number(coolingKw.toFixed(0)), target: Number(coolingTargetKw.toFixed(0)), status: coolingStatus },
             { metric: 'Safe Shift', value: Number((latest?.safe_shift_kw ?? 0).toFixed(0)), target: 1200, status: (latest?.safe_shift_kw ?? 0) < 900 ? 'warning' : 'normal' },
             { metric: 'Stress', value: Number(losses.toFixed(1)), target: 5.0, status: losses > 30 ? 'critical' : losses > 10 ? 'warning' : 'normal' },
         ] as const;
@@ -182,7 +192,7 @@ export default function DigitalTwinDashboard() {
         return chartData.map((p: any, idx: number) => ({
             time: (p.ts ?? '').slice(11, 19) || `${idx}`,
             intensity: p.carbon_g_per_kwh ?? 450,
-            workload: ((p.total_load_kw ?? 1000) / 1000),
+            workload: ((p.it_load_kw ?? p.total_load_kw ?? 1000) / 1000),
         }));
     }, [chartData]);
 
@@ -203,7 +213,7 @@ export default function DigitalTwinDashboard() {
     // Radar chart data
     const predictionRadar = useMemo(() => {
         const temp = clamp(latest?.rack_temp_c ?? 42, 0, 100);
-        const load = clamp(((latest?.total_load_kw ?? 1000) / 15), 0, 100);
+        const load = clamp(((latest?.it_load_kw ?? latest?.total_load_kw ?? 1000) / 15), 0, 100);
         const eff = clamp(100 - ((latest?.cooling_kw ?? 800) / 12), 0, 100);
         const rel = clamp(100 - (latest?.stress_score ?? 0.1) * 100, 0, 100);
         const carb = clamp(((latest?.carbon_g_per_kwh ?? 450) / 7), 0, 100);
@@ -222,7 +232,7 @@ export default function DigitalTwinDashboard() {
         return chartData.slice(-60).map((p: any, idx: number) => ({
             time: (p.ts ?? '').slice(11, 19) || `${idx}`,
             cooling: p.cooling_kw ?? 800,
-            process: p.total_load_kw ?? 1000,
+            process: p.it_load_kw ?? p.total_load_kw ?? 1000,
             return: p.safe_shift_kw ?? 1200,
         }));
     }, [chartData]);
