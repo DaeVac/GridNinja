@@ -1,12 +1,21 @@
 from __future__ import annotations
 
+import json
+import logging
 import os
+import sys
+import time
+import uuid
+from logging.handlers import RotatingFileHandler
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
 
 from app.api import (
     routes_decision,
+    routes_demo,
     routes_health,
     routes_kpi,
     routes_telemetry,
@@ -16,14 +25,27 @@ from app.api import (
     routes_explain,
 )
 
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
-import uuid
-import time
-import logging
 
-# Configure Logging
-logging.basicConfig(level=logging.INFO)
+def configure_logging() -> None:
+    level = os.getenv("LOG_LEVEL", "INFO").upper()
+    handlers = [logging.StreamHandler(sys.stdout)]
+
+    log_dir = os.getenv("LOG_DIR")
+    if log_dir:
+        os.makedirs(log_dir, exist_ok=True)
+        logfile = os.path.join(log_dir, "backend.jsonl")
+        handlers.append(RotatingFileHandler(logfile, maxBytes=10_000_000, backupCount=5))
+
+    logging.basicConfig(level=level, handlers=handlers, format="%(message)s")
+
+    for name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
+        lg = logging.getLogger(name)
+        lg.handlers = handlers
+        lg.setLevel(level)
+        lg.propagate = False
+
+
+configure_logging()
 logger = logging.getLogger("api")
 
 class RequestIDMiddleware(BaseHTTPMiddleware):
@@ -53,7 +75,7 @@ class StructuredLoggerMiddleware(BaseHTTPMiddleware):
             "status": response.status_code,
             "latency_ms": round(process_time_ms, 2)
         }
-        logger.info(str(log_entry))
+        logger.info(json.dumps(log_entry, separators=(",", ":")))
         
         return response
 
@@ -142,6 +164,7 @@ app.include_router(routes_kpi.router, prefix="/kpi", tags=["KPI"])
 app.include_router(routes_grid.router, prefix="/grid", tags=["Grid"])
 app.include_router(routes_ws.router, tags=["WebSocket"])
 app.include_router(routes_explain.router, prefix="/explain", tags=["Explain"])
+app.include_router(routes_demo.router, prefix="/demo", tags=["Demo"])
 
 
 # ============================================================

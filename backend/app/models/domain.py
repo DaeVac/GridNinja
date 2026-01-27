@@ -57,6 +57,11 @@ class ThermalTwinConfig(BaseModel):
     # Cooling efficiency multiplier (0..1)
     Cooling_Efficiency: float = 0.80
 
+    # Signed deltaP_request_kw engineering limits.
+    # Positive = export (reduce grid import), negative = import (increase load).
+    max_export_kw: float = 5000.0
+    max_import_kw: float = 5000.0
+
     # --- Coolant realism ---
     glycol_pct: float = 0.30
     coolant_volume_m3: float = 0.06
@@ -88,6 +93,7 @@ class BatteryDegradationConfig(BaseModel):
 class DecisionTraceEvent(BaseModel):
     ts: str
     decision_id: Optional[str] = None
+    phase: Optional[str] = None
 
     component: ComponentType
     rule_id: str

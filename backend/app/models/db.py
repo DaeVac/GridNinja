@@ -1,5 +1,7 @@
 from typing import Optional, List
 from datetime import datetime
+import os
+
 from sqlmodel import Field, SQLModel, create_engine, Session, Relationship
 
 # ============================================================
@@ -53,7 +55,13 @@ class TraceRecord(SQLModel, table=True):
 sqlite_file_name = "gridninja.db"
 sqlite_url = f"sqlite:///{sqlite_file_name}"
 
-engine = create_engine(sqlite_url, echo=False)
+DATABASE_URL = os.getenv("DATABASE_URL", sqlite_url)
+
+connect_args = {}
+if DATABASE_URL.startswith("sqlite"):
+    connect_args = {"check_same_thread": False}
+
+engine = create_engine(DATABASE_URL, echo=False, connect_args=connect_args)
 
 def create_db_and_tables():
     SQLModel.metadata.create_all(engine)

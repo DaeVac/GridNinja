@@ -76,44 +76,61 @@ def compute_trace_kpis(events: List[Dict[str, Any]], window_s: int = 900) -> Dic
         if dt >= cutoff:
             recent.append(e)
 
-    blocked = [e for e in recent if e.get("status") == RuleStatus.BLOCKED.value]
+    def is_final_phase(e: Dict[str, Any]) -> bool:
+        phase = str(e.get("phase") or "final")
+        return phase != "candidate"
 
-    blocked_decisions = set()
-    for e in blocked:
-        did = e.get("decision_id")
-        if did:
-            blocked_decisions.add(did)
+    recent_final = [e for e in recent if is_final_phase(e)]
+    final_decisions = [e for e in recent_final if e.get("rule_id") == "APPROVED_DELTA_SELECTED"]
+    decision_ids = {e.get("decision_id") for e in final_decisions if e.get("decision_id")}
+    total_recent = len(decision_ids)
+
+    blocked_decisions = {
+        e.get("decision_id")
+        for e in final_decisions
+        if e.get("decision_id") and e.get("status") == RuleStatus.BLOCKED.value
+    }
+
+    blocked_events = [e for e in recent_final if e.get("status") == RuleStatus.BLOCKED.value]
 
     by_component: Dict[str, int] = {}
     by_rule: Dict[str, int] = {}
 
-    for e in blocked:
+    for e in blocked_events:
         c = str(e.get("component", "UNKNOWN"))
         r = str(e.get("rule_id", "UNKNOWN"))
         by_component[c] = by_component.get(c, 0) + 1
         by_rule[r] = by_rule.get(r, 0) + 1
 
-    # New Metrics
-    total_recent = len(set(e.get("decision_id") for e in recent if e.get("decision_id")))
+    unsafe_actions_prevented_total = 0
+    for e in final_decisions:
+        status = e.get("status")
+        proposed = e.get("proposed_deltaP_kw")
+        approved = e.get("approved_deltaP_kw")
+        clipped = False
+        if proposed is not None and approved is not None:
+            try:
+                clipped = abs(float(approved)) + 1e-9 < abs(float(proposed))
+            except Exception:
+                clipped = False
+        if status == RuleStatus.BLOCKED.value or clipped:
+            unsafe_actions_prevented_total += 1
+
     blocked_rate_pct = (len(blocked_decisions) / total_recent * 100.0) if total_recent > 0 else 0.0
 
     # Top blocked rules
     top_rules = [r for r, _ in Counter(by_rule).most_common(3)]
     
     # Financial & Environmental Calcs (Simulated Estimate)
-    # We iterate over unique decisions to sum up approved kW vs requested
-    # Note: `events` are trace items. We need to aggregate by decision_id first to get the main 'approved_deltaP_kw'
-    # But trace items check specific rules. The 'APPROVED_DELTA_SELECTED' rule contains the final math.
-    
+    # We iterate over final decisions to sum up approved kW vs requested
     total_kwh_shifted = 0.0
     total_blocked_requests = len(blocked_decisions)
     
     # Simple proxy: sum up 'approved_deltaP_kw' from "APPROVED_DELTA_SELECTED" events
-    for e in recent:
-        if e.get("rule_id") == "APPROVED_DELTA_SELECTED":
-             kw = float(e.get("approved_deltaP_kw", 0.0))
-             # Assume this shift lasts for the decision horizon (avg 30s)
-             total_kwh_shifted += (kw * (30.0 / 3600.0))
+    for e in final_decisions:
+        kw = float(e.get("approved_deltaP_kw", 0.0))
+        # Assume this shift lasts for the decision horizon (avg 30s)
+        total_kwh_shifted += (kw * (30.0 / 3600.0))
     
     # Formulas (Projected for Demo)
     # $0.15/kWh difference between peak and off-peak
@@ -130,7 +147,7 @@ def compute_trace_kpis(events: List[Dict[str, Any]], window_s: int = 900) -> Dic
 
     return {
         "window_s": int(window_s),
-        "unsafe_actions_prevented_total": int(len(blocked)),
+        "unsafe_actions_prevented_total": int(unsafe_actions_prevented_total),
         "blocked_decisions_unique": int(len(blocked_decisions)),
         "blocked_rate_pct": float(round(blocked_rate_pct, 1)),
         "jobs_completed_on_time_pct": float(round(jobs_on_time_pct, 1)),
@@ -184,10 +201,10 @@ class DigitalTwinService:
     # -----------------------------
     def push_trace(self, e: DecisionTraceEvent | Dict[str, Any]) -> None:
         if isinstance(e, DecisionTraceEvent):
-            self.trace.append(e.model_dump())
+            self.trace.append(e.model_dump(mode="json"))
         else:
             try:
-                self.trace.append(DecisionTraceEvent(**e).model_dump())
+                self.trace.append(DecisionTraceEvent(**e).model_dump(mode="json"))
             except Exception:
                 self.trace.append(dict(e))
 
@@ -375,6 +392,7 @@ class DigitalTwinService:
                     "message": f"GNN clamped grid headroom from {grid_headroom_kw} to {gnn_limit_kw:.2f} kW",
                     "value": float(gnn_limit_kw),
                     "threshold": float(grid_headroom_kw),
+                    "phase": "final",
                     "decision_id": decision_id,
                 })
 

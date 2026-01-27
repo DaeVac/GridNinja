@@ -84,68 +84,93 @@ def build_ramp_plan(
 ) -> Tuple[float, RampPlan, Dict[str, float]]:
     """
     Returns: approved_deltaP_kw, RampPlan, prediction_debug
+
+    Sign convention:
+      deltaP_request_kw > 0 => net export (reduce grid import)
+      deltaP_request_kw < 0 => net import (increase grid import)
     """
 
     batt_cfg = BatteryDegradationConfig()
 
-    def emit(component: ComponentType, rule_id: str, status: RuleStatus, severity: SeverityLevel, message: str, **kwargs):
+    def emit(
+        component: ComponentType,
+        rule_id: str,
+        status: RuleStatus,
+        severity: SeverityLevel,
+        message: str,
+        phase: str = "final",
+        **kwargs,
+    ):
         if trace_sink is None:
             return
         trace_sink.append(
             DecisionTraceEvent(
                 ts=datetime.now().isoformat(),
                 decision_id=decision_id,
+                phase=phase,
                 component=component,
                 rule_id=rule_id,
                 status=status,
                 severity=severity,
                 message=message,
                 **kwargs,
-            ).model_dump()
+            ).model_dump(mode="json")
         )
 
     # -----------------------------
     # 1) Grid clamp
     # -----------------------------
-    req = float(max(0.0, deltaP_request_kw))
+    req = float(deltaP_request_kw)
+    req_mag = abs(req)
     headroom = float(max(0.0, grid_headroom_kw))
-    deltaP_cap = min(req, headroom)
+    max_export = float(cfg.max_export_kw)
+    max_import = float(cfg.max_import_kw)
+    cap_limit = min(headroom, max_export) if req >= 0.0 else min(headroom, max_import)
+    deltaP_cap_mag = min(req_mag, cap_limit)
+    deltaP_cap = math.copysign(deltaP_cap_mag, req) if deltaP_cap_mag > 0.0 else 0.0
 
     emit(
         component=ComponentType.GRID,
         rule_id="GRID_HEADROOM_CLAMP",
         status=RuleStatus.INFO,
         severity=SeverityLevel.LOW,
-        message="Requested ΔP compared against grid headroom.",
-        value=req,
-        threshold=headroom,
+        message="Requested deltaP compared against grid headroom and limits.",
+        value=req_mag,
+        threshold=cap_limit,
         units="kW",
         proposed_deltaP_kw=req,
         approved_deltaP_kw=deltaP_cap,
+        phase="final",
     )
 
-    if deltaP_cap < req:
+    if deltaP_cap_mag < req_mag:
         emit(
             component=ComponentType.GRID,
             rule_id="GRID_HEADROOM_REDUCED_ACTION",
             status=RuleStatus.BLOCKED,
             severity=SeverityLevel.MEDIUM,
-            message="Unsafe action prevented: requested ΔP reduced to fit grid headroom.",
+            message="Unsafe action prevented: requested deltaP reduced to fit limits.",
+            value=req_mag,
+            threshold=cap_limit,
             proposed_deltaP_kw=req,
             approved_deltaP_kw=deltaP_cap,
             units="kW",
+            phase="final",
         )
 
-    if deltaP_cap <= 0.0:
+    if deltaP_cap_mag <= 0.0:
         emit(
             component=ComponentType.GRID,
             rule_id="GRID_HEADROOM_ZERO",
             status=RuleStatus.BLOCKED,
             severity=SeverityLevel.HIGH,
             message="Unsafe action prevented: no grid headroom available.",
+            value=req_mag,
+            threshold=cap_limit,
             proposed_deltaP_kw=req,
             approved_deltaP_kw=0.0,
             units="kW",
+            phase="blocked",
         )
         plan = RampPlan(
             requested_deltaP_kw=req,
@@ -185,16 +210,17 @@ def build_ramp_plan(
                     rule_id="RAMP_RATE_LIMIT",
                     status=RuleStatus.INFO,
                     severity=SeverityLevel.LOW,
-                    message="ΔP ramp-rate limited for stability.",
+                    message="deltaP ramp-rate limited for stability.",
                     value=float(delta_step),
                     threshold=float(max_step),
                     units="kW/step",
                     proposed_deltaP_kw=float(desired_kw),
                     approved_deltaP_kw=float(next_delta),
+                    phase="candidate",
                 )
 
-            # Evaluate thermal at next timestep
-            P_total_kw = float(P_site_kw) + float(next_delta)
+            # Signed deltaP: positive reduces grid import, so subtract from site load.
+            P_total_kw = float(P_site_kw) - float(next_delta)
             pred = twin.predict(P_total_kw, float(dt_s))
 
             # Battery wear proxy
@@ -219,6 +245,7 @@ def build_ramp_plan(
                 proposed_deltaP_kw=float(next_delta),
                 approved_deltaP_kw=float(next_delta),
                 rack_temp_c=float(pred["rack_temp_c_next"]),
+                phase="candidate",
             )
 
             # Thermal margin gating
@@ -229,13 +256,14 @@ def build_ramp_plan(
                     rule_id="THERMAL_MARGIN_TOO_THIN",
                     status=RuleStatus.BLOCKED,
                     severity=SeverityLevel.MEDIUM,
-                    message="Thermal margin too thin (<0.5°C). Blocking to avoid instability.",
+                    message="Thermal margin too thin (<0.5C). Blocking to avoid instability.",
                     value=float(pred["rack_temp_c_next"]),
                     threshold=float(cfg.T_max - 0.5),
-                    units="°C",
+                    units="C",
                     proposed_deltaP_kw=float(next_delta),
                     approved_deltaP_kw=0.0,
                     rack_temp_c=float(pred["rack_temp_c_next"]),
+                    phase="candidate",
                 )
                 step_rows.append(
                     RampPlanStep(
@@ -259,10 +287,11 @@ def build_ramp_plan(
                     message="Unsafe action prevented: thermal limit exceeded.",
                     value=float(pred["rack_temp_c_next"]),
                     threshold=float(cfg.T_max),
-                    units="°C",
+                    units="C",
                     proposed_deltaP_kw=float(next_delta),
                     approved_deltaP_kw=0.0,
                     rack_temp_c=float(pred["rack_temp_c_next"]),
+                    phase="candidate",
                 )
                 step_rows.append(
                     RampPlanStep(
@@ -291,6 +320,7 @@ def build_ramp_plan(
                     proposed_deltaP_kw=float(desired_kw),
                     approved_deltaP_kw=0.0,
                     rack_temp_c=float(pred["rack_temp_c_next"]),
+                    phase="candidate",
                 )
                 step_rows.append(
                     RampPlanStep(
@@ -314,10 +344,11 @@ def build_ramp_plan(
                 message="Thermal step prediction evaluated.",
                 value=float(pred["rack_temp_c_next"]),
                 threshold=float(cfg.T_max),
-                units="°C",
+                units="C",
                 proposed_deltaP_kw=float(next_delta),
                 approved_deltaP_kw=float(next_delta),
                 rack_temp_c=float(pred["rack_temp_c_next"]),
+                phase="candidate",
             )
 
             step_rows.append(
@@ -342,17 +373,19 @@ def build_ramp_plan(
     # 3) Binary search
     # -----------------------------
     low = 0.0
-    high = float(deltaP_cap)
-    best = 0.0
+    high = float(deltaP_cap_mag)
+    best_mag = 0.0
     best_steps: List[RampPlanStep] = []
     best_cap_loss = 0.0
+    direction = 1.0 if req >= 0.0 else -1.0
     # 20 iters gives much better precision (~1e-6 relative error)
     for _ in range(20):
         mid = (low + high) / 2.0
-        ok, steps, caploss = simulate_candidate(mid)
+        candidate = direction * mid
+        ok, steps, caploss = simulate_candidate(candidate)
 
         if ok:
-            best = mid
+            best_mag = mid
             best_steps = steps
             best_cap_loss = caploss
             low = mid
@@ -362,7 +395,8 @@ def build_ramp_plan(
     # -----------------------------
     # 4) Finalize plan
     # -----------------------------
-    blocked = best <= 1e-6
+    best = direction * best_mag if best_mag > 0.0 else 0.0
+    blocked = best_mag <= 1e-6
     primary_constraint = None
     val = None
     thresh = None
@@ -371,11 +405,11 @@ def build_ramp_plan(
     if blocked:
         # Determine WHY it was blocked by checking what limited the binary search
         # 1. Grid Check
-        if deltaP_cap <= 1e-6:
+        if deltaP_cap_mag <= 1e-6:
             reason = "GRID_HEADROOM_ZERO"
             primary_constraint = ComponentType.GRID
-            val = float(req)
-            thresh = float(headroom)
+            val = float(req_mag)
+            thresh = float(cap_limit)
         else:
             # 2. Thermal Check (simulate max request to see what breaks)
             ok_max, _, caploss_max = simulate_candidate(deltaP_cap)
@@ -393,18 +427,33 @@ def build_ramp_plan(
                     # Probing simulation to get exact temp
                     sim_state = ThermalTwinState(T_c=float(state.T_c), P_cool_kw=float(state.P_cool_kw))
                     twin = ThermalTwin(cfg=cfg, state=sim_state)
-                    pred = twin.predict(float(P_site_kw) + float(deltaP_cap), float(dt_s))
+                    pred = twin.predict(float(P_site_kw) - float(deltaP_cap), float(dt_s))
                     val = float(pred["rack_temp_c_next"])
                     thresh = float(cfg.T_max)
+
+    if blocked:
+        emit(
+            component=primary_constraint or ComponentType.POLICY,
+            rule_id=str(reason),
+            status=RuleStatus.BLOCKED,
+            severity=SeverityLevel.HIGH,
+            message="Decision blocked by final constraint.",
+            value=val,
+            threshold=thresh,
+            proposed_deltaP_kw=req,
+            approved_deltaP_kw=float(best),
+            phase="blocked",
+        )
 
     emit(
         component=ComponentType.POLICY,
         rule_id="APPROVED_DELTA_SELECTED",
         status=RuleStatus.ALLOWED if not blocked else RuleStatus.BLOCKED,
         severity=SeverityLevel.LOW if not blocked else SeverityLevel.HIGH,
-        message="Approved ΔP selected via conservative search under constraints.",
+        message="Approved deltaP selected via conservative search under constraints.",
         proposed_deltaP_kw=req,
         approved_deltaP_kw=float(best),
+        phase="final" if not blocked else "blocked",
     )
 
     plan = RampPlan(

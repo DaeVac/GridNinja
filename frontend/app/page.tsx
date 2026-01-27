@@ -2,6 +2,8 @@ import { auth0 } from "@/lib/auth0";
 import LoginButton from "@/components/LoginButton";
 import LogoutButton from "@/components/LogoutButton";
 
+export const dynamic = "force-dynamic";
+
 export default async function Home() {
   const session = await auth0.getSession();
   const user = session?.user;
@@ -20,7 +22,7 @@ export default async function Home() {
         </div>
 
         <h1 className="main-title">
-          Optimize your Power Grid with AI
+          Optimize your Power Grid 
         </h1>
       </div>
       <div className="login-button-container">

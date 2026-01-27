@@ -3,7 +3,7 @@ routes_decision.py
 
 Purpose:
   The primary Controller API for the Neural Control Plane.
-  Clients call this endpoint to request load shifts (ramp up/down).
+  Clients call this endpoint to request signed load shifts (export/import).
 
 Endpoints:
   - **GET /decision/latest**: Evaluates a proposed load shift (`deltaP_request_kw`) against:
@@ -28,7 +28,12 @@ router = APIRouter()
 
 @router.get("/latest", response_model=DecisionResponse)
 async def decision_latest(
-    deltaP_request_kw: float = Query(..., ge=-5000.0, le=5000.0, description="Requested load shift (kW)"),
+    deltaP_request_kw: float = Query(
+        ...,
+        ge=-5000.0,
+        le=5000.0,
+        description="Requested load shift (kW). Positive=export, negative=import.",
+    ),
     P_site_kw: float = Query(..., ge=0.0, le=100000.0, description="Total site load (kW)"),
     grid_headroom_kw: Optional[float] = Query(None, ge=0.0, le=100000.0, description="Available grid capacity (kW)"),
     horizon_s: int = Query(30, ge=10, le=300, description="Optimization horizon (seconds)"),
@@ -104,6 +109,7 @@ async def decision_latest(
             "message": f"Headroom determined by {headroom_source}",
             "value": float(grid_headroom_kw),
             "threshold": None,
+            "phase": "final",
             "decision_id": out.get("decision_id")
         })
 

@@ -42,6 +42,13 @@ def base_cfg():
         "expect_blocked": False,
         "desc": "Small request, plenty of headroom -> Approved full"
     },
+    {
+        "id": "grid_negative_signed",
+        "req": -200.0, "headroom": 1000.0,
+        "expect_approved": -200.0,
+        "expect_blocked": False,
+        "desc": "Negative request preserved (import increase)"
+    },
 ])
 def test_build_ramp_plan_grid(case, base_cfg, base_state):
     """Test grid-level clamping logic."""
@@ -65,19 +72,19 @@ def test_thermal_blocking(base_cfg, base_state):
     # Force state near limit
     hot_state = ThermalTwinState(T_c=49.0, P_cool_kw=100.0) # 1 degree from limit
     
-    # Request huge load
+    # Request huge load increase (negative = import)
     approved, plan, debug = build_ramp_plan(
         P_site_kw=1000.0,
         grid_headroom_kw=5000.0,
         cfg=base_cfg,
         state=hot_state,
-        deltaP_request_kw=2000.0, # Massive jump
+        deltaP_request_kw=-2000.0, # Massive jump
         horizon_s=30
     )
     
     # Logic should find 2000kW unsafe and reduce it drastically or block it
     # Since we are so close to temp limit, it likely clamps to near zero
-    assert approved < 500.0 
+    assert abs(approved) < 500.0
     # If it finds *some* safe room (binary search), it won't be blocked, just reduced.
     # If it blocks entirely:
     if plan.blocked:
