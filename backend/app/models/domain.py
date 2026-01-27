@@ -195,6 +195,12 @@ class TelemetryTimeseriesPoint(BaseModel):
     rack_temp_c: float
     cooling_kw: float
 
+    # Debug/diagnostics (optional)
+    q_passive_kw: Optional[float] = None
+    q_active_kw: Optional[float] = None
+    cooling_target_kw: Optional[float] = None
+    cooling_cop: Optional[float] = None
+
 
 class DecisionResponse(BaseModel):
     ts: str

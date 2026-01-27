@@ -200,6 +200,7 @@ class DigitalTwinService:
         
         # Latest telemetry point (for WebSockets)
         self._latest: Optional[Dict[str, Any]] = None
+        self._last_thermal_debug: Dict[str, float] = {}
 
     def get_latest_telemetry(self) -> Optional[Dict[str, Any]]:
         return self._latest
@@ -363,6 +364,10 @@ class DigitalTwinService:
                 "carbon_g_per_kwh": float(carbon_val),
                 "rack_temp_c": float(temp),
                 "cooling_kw": float(cooling),
+                "q_passive_kw": float(pred.get("q_passive_kw", 0.0)),
+                "q_active_kw": float(pred.get("q_active_kw", 0.0)),
+                "cooling_target_kw": float(pred.get("cooling_target_kw", 0.0)),
+                "cooling_cop": float(pred.get("cooling_cop", 0.0)),
             })
         
         return out
@@ -530,7 +535,13 @@ class DigitalTwinService:
         # 2. Evolve Thermal State
         twin = ThermalTwin(self.therm_cfg, self.therm_state)
         # We step the twin forward by dt_s
-        twin.step(P_it_kw=current_load, dt_s=dt_s)
+        pred = twin.step(P_it_kw=current_load, dt_s=dt_s)
+        self._last_thermal_debug = {
+            "q_passive_kw": float(pred.get("q_passive_kw", 0.0)),
+            "q_active_kw": float(pred.get("q_active_kw", 0.0)),
+            "cooling_target_kw": float(pred.get("cooling_target_kw", 0.0)),
+            "cooling_cop": float(pred.get("cooling_cop", 0.0)),
+        }
         
         # Update latest telemetry cache (async to avoid blocking on GNN)
         self._latest = await self._compute_latest_telemetry_point_async(current_load)
@@ -596,6 +607,10 @@ class DigitalTwinService:
             "carbon_g_per_kwh": float(carbon_val),
             "rack_temp_c": float(self.therm_state.T_c),
             "cooling_kw": float(self.therm_state.P_cool_kw),
+            "q_passive_kw": float(self._last_thermal_debug.get("q_passive_kw", 0.0)),
+            "q_active_kw": float(self._last_thermal_debug.get("q_active_kw", 0.0)),
+            "cooling_target_kw": float(self._last_thermal_debug.get("cooling_target_kw", 0.0)),
+            "cooling_cop": float(self._last_thermal_debug.get("cooling_cop", 0.0)),
         }
     def get_kpi_summary(self, window_s: int = 900) -> Dict[str, Any]:
         events = list(self.trace)

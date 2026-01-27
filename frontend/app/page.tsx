@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { auth0Configured, getSessionSafe } from "@/lib/auth0";
 import LoginButton from "@/components/LoginButton";
 import LogoutButton from "@/components/LogoutButton";
@@ -11,19 +12,41 @@ export default async function Home() {
   return (
     <div className="app-container">
       <div className="team-row">
-        <img src="/Neutron.0.GIF" alt="logo" loading="lazy" />
-        <img src="/teamName.svg" alt="Team Name" loading="lazy" />
+        <Image
+          src="/Neutron.0.GIF"
+          alt="Neutron logo"
+          width={60}
+          height={60}
+          priority
+          unoptimized
+        />
+        <Image
+          src="/teamName.svg"
+          alt="GridNinja"
+          width={180}
+          height={60}
+          priority
+        />
       </div>
       <div className="header-container">
-        <div className="video-container">
-          <video autoPlay muted loop playsInline preload="metadata" poster="/tempLogo.svg">
+        <div className="video-container" aria-hidden="true">
+          <video autoPlay muted loop playsInline preload="none" poster="/tempLogo.svg">
             <source src="/Video Project.mp4" type="video/mp4" />
           </video>
         </div>
 
-        <h1 className="main-title">
-          Optimize your Power Grid 
-        </h1>
+        <div className="hero-text">
+          <h1 className="main-title">Optimize your Power Grid</h1>
+          <p className="hero-subtitle">
+            Real-time telemetry, thermal headroom, and AI dispatching to keep
+            your grid stable while maximizing savings.
+          </p>
+          <div className="hero-pills">
+            <span className="hero-pill">Live telemetry</span>
+            <span className="hero-pill">Thermal twin</span>
+            <span className="hero-pill">Safe shift control</span>
+          </div>
+        </div>
       </div>
       <div className="login-button-container">
         {auth0Configured ? (

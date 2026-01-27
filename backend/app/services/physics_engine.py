@@ -142,6 +142,10 @@ class ThermalTwin:
             "cooling_kw_next": float(next_cooling_kw),
             "thermal_ok_next": bool(thermal_ok),
             "thermal_headroom_kw": float(self._calculate_headroom_kw(next_temp_c, next_cooling_kw)),
+            "q_passive_kw": float(q_passive),
+            "q_active_kw": float(q_active),
+            "cooling_target_kw": float(target_cooling_kw),
+            "cooling_cop": float(cop),
         }
 
     def _calculate_headroom_kw(self, next_temp_c: float, next_cooling_kw: float) -> float:

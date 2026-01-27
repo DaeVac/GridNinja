@@ -48,6 +48,12 @@ function getStatusColor(status: 'critical' | 'warning' | 'normal') {
     }
 }
 
+function formatDebug(value?: number, digits = 1) {
+    return typeof value === 'number' && Number.isFinite(value)
+        ? value.toFixed(digits)
+        : 'n/a';
+}
+
 export default function DigitalTwinDashboard() {
     const [timeRange, setTimeRange] = useState<TimeRangeKey>('1h');
     const [pulseIntensity, setPulseIntensity] = useState(1);
@@ -243,6 +249,10 @@ export default function DigitalTwinDashboard() {
                 wsStatus === 'closed' ? 'Offline' : 'WS Error';
     const transportLabel = (transport ?? 'ws').toUpperCase();
     const lastTelemetryTs = latest?.ts ?? 'n/a';
+    const qPassiveKw = latest?.q_passive_kw;
+    const qActiveKw = latest?.q_active_kw;
+    const coolingTargetKw = latest?.cooling_target_kw;
+    const coolingCop = latest?.cooling_cop;
 
     return (
         <div className="flex flex-col h-screen w-full bg-black text-slate-100 font-sans overflow-hidden">
@@ -313,6 +323,10 @@ export default function DigitalTwinDashboard() {
                         <span>API: {API_BASE}</span>
                         <span>WS: {WS_BASE}</span>
                         <span>Last TS: {lastTelemetryTs}</span>
+                        <span>q_passive: {formatDebug(qPassiveKw)} kW</span>
+                        <span>q_active: {formatDebug(qActiveKw)} kW</span>
+                        <span>cooling_target: {formatDebug(coolingTargetKw)} kW</span>
+                        <span>COP: {formatDebug(coolingCop, 2)}</span>
                     </div>
 
                     {/* A. PHYSICAL STATE */}

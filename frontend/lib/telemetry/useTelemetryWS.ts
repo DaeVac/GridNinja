@@ -13,6 +13,10 @@ export type TelemetryPoint = {
     carbon_g_per_kwh: number;
     rack_temp_c: number;
     cooling_kw: number;
+    q_passive_kw?: number;
+    q_active_kw?: number;
+    cooling_target_kw?: number;
+    cooling_cop?: number;
 };
 
 type WSStatus = "connecting" | "open" | "error" | "closed";
