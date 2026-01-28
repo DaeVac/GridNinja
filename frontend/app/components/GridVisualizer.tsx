@@ -436,9 +436,9 @@ export default function GridVisualizer({ telemetry }: GridVisualizerProps) {
   }, []);
 
   return (
-    <div className="relative h-full w-full overflow-hidden">
+    <div className="relative flex h-full w-full overflow-hidden">
       {/* React Flow Canvas */}
-      <div className="relative h-full w-full">
+      <div className="relative h-full flex-1">
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -518,7 +518,7 @@ export default function GridVisualizer({ telemetry }: GridVisualizerProps) {
 
       {/* Sidebar: Prediction */}
       {selectedNode && (
-        <div className="scrollbar-twin z-20 flex w-80 flex-col overflow-y-auto border-l border-[#3A1A0A] bg-[#120805] p-6 shadow-xl">
+        <div className="scrollbar-twin z-20 flex h-full w-80 shrink-0 flex-col overflow-y-auto border-l border-[#3A1A0A] bg-[#120805] p-6 shadow-xl">
           <div className="mb-6 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-[#FFE65C]">
               Node {selectedNode}
