@@ -4,12 +4,13 @@ import React from 'react';
 import Image from 'next/image';
 import { useTelemetryWS } from '@/lib/telemetry/useTelemetryWS';
 import clsx from 'clsx';
-import { Activity, Thermometer, Zap, DollarSign, Leaf, ShieldAlert } from 'lucide-react';
+import { Activity, Gauge, Zap, DollarSign, Leaf, ShieldAlert } from 'lucide-react';
 import LogoutButton from '../../components/LogoutButton';
 import dynamic from 'next/dynamic';
 import { KpiGrid } from '../../components/kpi/KpiGrid';
 import { KpiCardProps } from '../../components/kpi/KpiCard';
 import DemoModeButton from './DemoModeButton';
+import LoadShiftPanel from './LoadShiftPanel';
 
 // Backend API
 const API_BASE =
@@ -68,15 +69,6 @@ const GridVisualizer = dynamic(() => import('./GridVisualizer'), {
         </div>
     ),
 });
-const ThermalVisualizer3D = dynamic(() => import('./ThermalVisualizer3D'), {
-    ssr: false,
-    loading: () => (
-        <div className="h-full w-full flex items-center justify-center bg-[#0B0705] text-[#7A3A1A] text-xs">
-            Loading 3D Engine...
-        </div>
-    ),
-});
-
 const LOGO_WIDTH = 160;
 const LOGO_HEIGHT = 40;
 const AVATAR_SIZE = 36;
@@ -315,19 +307,16 @@ export default function DashboardView({ user }: { user: UserProfile }) {
                             </div>
                         </section>
 
-                        {/* Right: Thermal Twin */}
-                        <section aria-labelledby="thermal-twin-title" className="flex flex-col gap-3">
+                        {/* Right: Shift Control */}
+                        <section aria-labelledby="shift-control-title" className="flex flex-col gap-3">
                             <div className="flex items-center justify-between">
-                                <h2 id="thermal-twin-title" className="text-lg font-semibold flex items-center gap-2 text-[#FFE65C]">
-                                    <Thermometer className="w-5 h-5 text-[#FF5A00]" />
-                                    3D Thermal Twin
+                                <h2 id="shift-control-title" className="text-lg font-semibold flex items-center gap-2 text-[#FFE65C]">
+                                    <Gauge className="w-5 h-5 text-[#FF5A00]" />
+                                    Shift Control Plane
                                 </h2>
-                                <span className="text-xs font-mono text-[#7A3A1A]">PHYSICS ENGINE V2</span>
+                                <span className="text-xs font-mono text-[#7A3A1A]">LIVE CONSTRAINTS</span>
                             </div>
-                            {/* Dark Card for 3D View */}
-                            <div className="relative isolate h-[320px] sm:h-[360px] lg:h-[460px] bg-[#0B0705] rounded-xl border border-[#3A1A0A] shadow-xl overflow-hidden">
-                                <ThermalVisualizer3D telemetry={latest} />
-                            </div>
+                            <LoadShiftPanel telemetry={latest} />
                         </section>
                     </div>
                 </div>

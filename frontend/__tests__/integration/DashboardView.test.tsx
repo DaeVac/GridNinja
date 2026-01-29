@@ -19,8 +19,8 @@ vi.mock('@/lib/telemetry/useTelemetryWS', () => ({
 vi.mock('@/app/components/GridVisualizer', () => ({
     default: () => <div data-testid="grid-vis">Grid Mock</div>
 }));
-vi.mock('@/app/components/ThermalVisualizer3D', () => ({
-    default: () => <div data-testid="thermal-vis">Thermal Mock</div>
+vi.mock('@/app/components/LoadShiftPanel', () => ({
+    default: () => <div data-testid="load-shift">Shift Mock</div>
 }));
 
 // Mock Logout Button (avoids router dependency issues if any)
