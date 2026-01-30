@@ -4,15 +4,18 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // Mock Hooks
 vi.mock('@/lib/telemetry/useTelemetryWS', () => ({
-    useTelemetryWS: () => ({
-        status: 'open',
-        transport: 'ws',
-        latest: {
-            frequency_hz: 60.0,
-            total_load_kw: 500.0,
-            rack_temp_c: 25.0,
-        }
-    })
+  useTelemetryWS: () => ({
+    status: 'open',
+    transport: 'ws',
+    latest: {
+      frequency_hz: 60.0,
+      total_load_kw: 500.0,
+      rack_temp_c: 25.0,
+      safe_shift_kw: 500.0, // optional but good (your inspector/sparkline uses it)
+      ts: '2026-01-30T01:00:00Z', // optional
+    },
+    buffer: [], // ✅ REQUIRED now
+  }),
 }));
 
 // Mock Child Components

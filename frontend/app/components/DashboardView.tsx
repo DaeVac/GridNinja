@@ -18,6 +18,9 @@ const API_BASE =
 const WS_BASE =
     (process.env.NEXT_PUBLIC_WS_BASE_URL ?? "ws://localhost:8000").replace(/\/+$/, "");
 
+
+
+
 const DEMO_KPIS: KpiCardProps[] = [
     {
         title: "Money Saved",
@@ -157,8 +160,10 @@ function nextCheckInSeconds(entry: DecisionLogEntry, latestTempC?: number) {
     return 90;
 }
 
+const EMPTY_BUFFER: any[] = [];
 export default function DashboardView({ user }: { user: UserProfile }) {
-    const { status, transport, latest, buffer } = useTelemetryWS();
+    const { status, transport, latest, buffer: rawBuffer } = useTelemetryWS();
+    const buffer = rawBuffer ?? EMPTY_BUFFER;
     const [kpis, setKpis] = React.useState<KpiCardProps[]>(DEMO_KPIS);
     const [loadingKpi, setLoadingKpi] = React.useState(true);
     const [decisionLog, setDecisionLog] = React.useState<DecisionLogEntry[]>([]);
