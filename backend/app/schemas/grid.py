@@ -10,6 +10,8 @@ class GridNode(BaseModel):
     kind: NodeKind
     x: float
     y: float
+    v_pu: Optional[float] = None
+    criticality: Optional[float] = None
 
 class GridEdge(BaseModel):
     id: str                 # "1-2"
@@ -17,6 +19,12 @@ class GridEdge(BaseModel):
     target: str
     r_ohm: float
     x_ohm: float
+    p_mw: Optional[float] = None
+    loading_pct: Optional[float] = None
+    rating_mva: Optional[float] = None
+    thermal_limit_mw: Optional[float] = None
+    margin_pct: Optional[float] = None
+    alleviation: Optional[str] = None
 
 class GridTopologyResponse(BaseModel):
     nodes: List[GridNode]

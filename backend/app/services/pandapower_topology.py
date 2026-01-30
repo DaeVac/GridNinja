@@ -18,12 +18,15 @@ Layout Algorithm:
 from __future__ import annotations
 
 from collections import deque, defaultdict
+import math
 from typing import Dict, List, Tuple, Optional
 
 try:
+    import pandapower as pp
     import pandapower.networks as pn
     HAS_PANDAPOWER = True
 except Exception:
+    pp = None  # type: ignore
     pn = None  # type: ignore
     HAS_PANDAPOWER = False
 
@@ -70,9 +73,9 @@ class PandapowerTopology:
             labels[int(idx)] = label
         return labels
 
-    def _extract_lines(self) -> List[Tuple[int, int, float, float]]:
+    def _extract_lines(self) -> List[Tuple[int, int, int, float, float]]:
         """
-        Returns list: (from_label, to_label, r_ohm, x_ohm)
+        Returns list: (line_idx, from_label, to_label, r_ohm, x_ohm)
         """
         out = []
         for i in self.net.line.index:
@@ -86,7 +89,7 @@ class PandapowerTopology:
             r = float(self.net.line.at[i, "r_ohm_per_km"]) * float(self.net.line.at[i, "length_km"])
             x = float(self.net.line.at[i, "x_ohm_per_km"]) * float(self.net.line.at[i, "length_km"])
 
-            out.append((from_label, to_label, r, x))
+            out.append((int(i), from_label, to_label, r, x))
         return out
 
     def _layout_bfs(self, root_label: int = 1) -> Dict[int, Tuple[float, float]]:
@@ -94,7 +97,7 @@ class PandapowerTopology:
         Very stable, readable layout for radial networks using BFS levels.
         """
         adj = defaultdict(list)
-        for a, b, _, _ in self.lines:
+        for _, a, b, _, _ in self.lines:
             adj[a].append(b)
             adj[b].append(a)
 
@@ -139,8 +142,48 @@ class PandapowerTopology:
         dc_bus: int = 18,
         pv_buses: List[int] | None = None,
         substation_bus: int = 1,
+        alleviation_text: Optional[str] = None,
+        alleviation_by_branch: Optional[Dict[str, str]] = None,
     ) -> GridTopologyResponse:
         pv_buses = pv_buses or [6, 12, 18, 24, 30]
+
+        bus_vpu: Dict[int, float] = {}
+        line_metrics: Dict[int, Dict[str, float]] = {}
+
+        if pp is not None:
+            try:
+                pp.runpp(self.net, calculate_voltage_angles=False)
+                for bus_idx in self.net.bus.index:
+                    label = self.bus_labels[int(bus_idx)]
+                    vm_pu = self.net.res_bus.at[bus_idx, "vm_pu"]
+                    if vm_pu is not None and math.isfinite(float(vm_pu)):
+                        bus_vpu[label] = float(vm_pu)
+
+                for line_idx in self.net.line.index:
+                    res = self.net.res_line.loc[line_idx]
+                    loading = res.get("loading_percent", None)
+                    p_from = res.get("p_from_mw", None)
+                    metrics: Dict[str, float] = {}
+                    if loading is not None and math.isfinite(float(loading)):
+                        metrics["loading_pct"] = float(loading)
+                        metrics["margin_pct"] = max(0.0, 100.0 - float(loading))
+                    if p_from is not None and math.isfinite(float(p_from)):
+                        metrics["p_mw"] = float(p_from)
+
+                    # Optional thermal rating estimate (MVA) based on max_i_ka & bus voltage.
+                    try:
+                        max_i_ka = float(self.net.line.at[line_idx, "max_i_ka"])
+                        from_bus_idx = int(self.net.line.at[line_idx, "from_bus"])
+                        vn_kv = float(self.net.bus.at[from_bus_idx, "vn_kv"])
+                        metrics["rating_mva"] = math.sqrt(3.0) * vn_kv * max_i_ka
+                    except Exception:
+                        pass
+
+                    if metrics:
+                        line_metrics[int(line_idx)] = metrics
+            except Exception:
+                bus_vpu = {}
+                line_metrics = {}
 
         nodes: List[GridNode] = []
         for label in range(1, 34):
@@ -160,11 +203,19 @@ class PandapowerTopology:
                     kind=kind,
                     x=x,
                     y=y,
+                    v_pu=bus_vpu.get(label),
                 )
             )
 
         edges: List[GridEdge] = []
-        for (a, b, r, x) in self.lines:
+        max_loading = -1.0
+        max_loading_edge_id: Optional[str] = None
+        for (line_idx, a, b, r, x) in self.lines:
+            metrics = line_metrics.get(int(line_idx), {})
+            loading_pct = metrics.get("loading_pct")
+            if loading_pct is not None and loading_pct > max_loading:
+                max_loading = loading_pct
+                max_loading_edge_id = f"{a}-{b}"
             edges.append(
                 GridEdge(
                     id=f"{a}-{b}",
@@ -172,8 +223,24 @@ class PandapowerTopology:
                     target=str(b),
                     r_ohm=r,
                     x_ohm=x,
+                    p_mw=metrics.get("p_mw"),
+                    loading_pct=metrics.get("loading_pct"),
+                    rating_mva=metrics.get("rating_mva"),
+                    margin_pct=metrics.get("margin_pct"),
                 )
             )
+
+        alleviation_by_branch = alleviation_by_branch or {}
+        if alleviation_text:
+            if max_loading_edge_id is None and edges:
+                max_loading_edge_id = edges[0].id
+            if max_loading_edge_id:
+                alleviation_by_branch.setdefault(max_loading_edge_id, alleviation_text)
+
+        if alleviation_by_branch:
+            for edge in edges:
+                if edge.id in alleviation_by_branch:
+                    edge.alleviation = alleviation_by_branch[edge.id]
 
         meta = {
             "bus_count": 33,

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from collections import deque
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 from starlette.responses import FileResponse
@@ -28,6 +28,8 @@ def _require_demo_mode() -> None:
 @router.get("/status")
 async def demo_status() -> Dict[str, Any]:
     demo_mode = _is_demo_mode_enabled()
+    svc = get_twin_service()
+    scenario_status = svc.get_demo_status()
     return {
         "ok": True,
         "demo_mode": demo_mode,
@@ -37,7 +39,37 @@ async def demo_status() -> Dict[str, Any]:
         "explainer_enabled": env_flag("EXPLAINER_ENABLED", False),
         "runtime_enabled": _runtime_demo_enabled,
         "env_demo_mode": env_flag("DEMO_MODE", False),
+        "scenario": scenario_status,
     }
+
+
+@router.get("/scenarios")
+async def demo_scenarios() -> Dict[str, Any]:
+    svc = get_twin_service()
+    return {"ok": True, "items": svc.list_demo_scenarios()}
+
+
+@router.post("/start")
+async def demo_start(
+    scenario_id: str,
+    speed: float = 1.0,
+    seed: Optional[int] = None,
+) -> Dict[str, Any]:
+    _require_demo_mode()
+    svc = get_twin_service()
+    try:
+        status = svc.start_demo_scenario(scenario_id, speed=speed, seed=seed)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Unknown scenario")
+    return {"ok": True, "scenario": status}
+
+
+@router.post("/stop")
+async def demo_stop() -> Dict[str, Any]:
+    _require_demo_mode()
+    svc = get_twin_service()
+    svc.stop_demo_scenario()
+    return {"ok": True}
 
 
 @router.post("/enable")

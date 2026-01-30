@@ -200,6 +200,9 @@ class TelemetryTimeseriesPoint(BaseModel):
     q_active_kw: Optional[float] = None
     cooling_target_kw: Optional[float] = None
     cooling_cop: Optional[float] = None
+    price_usd_per_mwh: Optional[float] = None
+    scenario_id: Optional[str] = None
+    t_sim_s: Optional[float] = None
 
 
 class DecisionResponse(BaseModel):
@@ -220,6 +223,25 @@ class DecisionResponse(BaseModel):
 class TraceLatestResponse(BaseModel):
     ts: str
     events: List[Dict[str, Any]]
+
+class DecisionLogEntry(BaseModel):
+    decision_id: str
+    ts: str
+    requested_kw: float
+    approved_kw: float
+    blocked: bool
+    reason_code: str
+    primary_constraint: Optional[str] = None
+    constraint_value: Optional[float] = None
+    constraint_threshold: Optional[float] = None
+    confidence: Optional[float] = None
+    count: Optional[int] = None
+    first_ts: Optional[str] = None
+    last_ts: Optional[str] = None
+
+class DecisionLogResponse(BaseModel):
+    ts: str
+    items: List[DecisionLogEntry]
 
 
 class HealthResponse(BaseModel):

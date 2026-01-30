@@ -69,21 +69,34 @@ class GridServiceReal:
             "topology_error": self.topo_error,
         }
 
-    def get_topology(self) -> GridTopologyResponse:
+    def get_topology(
+        self,
+        alleviation_text: str | None = None,
+        alleviation_by_branch: Dict[str, str] | None = None,
+    ) -> GridTopologyResponse:
         if self.topo is not None:
             return self.topo.export_topology(
                 dc_bus=self.dc_bus,
                 pv_buses=self.pv_buses,
                 substation_bus=self.substation_bus,
+                alleviation_text=alleviation_text,
+                alleviation_by_branch=alleviation_by_branch,
             )
 
         # If pandapower is unavailable, fall back even if demo flag not set
         if self.allow_topology_fallback or self.topo is None:
-            return self._fallback_topology()
+            return self._fallback_topology(
+                alleviation_text=alleviation_text,
+                alleviation_by_branch=alleviation_by_branch,
+            )
 
         raise RuntimeError(f"Topology unavailable: {self.topo_error or 'unknown error'}")
 
-    def _fallback_topology(self) -> GridTopologyResponse:
+    def _fallback_topology(
+        self,
+        alleviation_text: str | None = None,
+        alleviation_by_branch: Dict[str, str] | None = None,
+    ) -> GridTopologyResponse:
         # Deterministic, lightweight topology for demo-only/offline runs.
         levels: List[int] = [1, 4, 8, 10, 10]  # totals 33 nodes
         nodes: List[GridNode] = []
@@ -105,6 +118,7 @@ class GridServiceReal:
 
                 x = level_idx * 160.0
                 y = (i - (count - 1) / 2.0) * 80.0
+                v_pu = 0.97 + ((label % 7) * 0.004)
                 nodes.append(
                     GridNode(
                         id=str(label),
@@ -112,6 +126,7 @@ class GridServiceReal:
                         kind=kind,  # type: ignore[arg-type]
                         x=x,
                         y=y,
+                        v_pu=round(v_pu, 4),
                     )
                 )
                 level_labels.append(label)
@@ -119,6 +134,7 @@ class GridServiceReal:
             if prev_level_labels:
                 for idx, child in enumerate(level_labels):
                     parent = prev_level_labels[idx % len(prev_level_labels)]
+                    loading_pct = 45 + ((child * 7) % 70)
                     edges.append(
                         GridEdge(
                             id=f"{parent}-{child}",
@@ -126,6 +142,9 @@ class GridServiceReal:
                             target=str(child),
                             r_ohm=0.05,
                             x_ohm=0.02,
+                            p_mw=round(((child % 5) - 2) * 0.6, 2),
+                            loading_pct=round(float(loading_pct), 1),
+                            margin_pct=round(max(0.0, 100.0 - float(loading_pct)), 1),
                         )
                     )
             prev_level_labels = level_labels
@@ -138,6 +157,15 @@ class GridServiceReal:
             "source": "fallback.demo",
             "note": "Pandapower unavailable; demo topology fallback in use.",
         }
+
+        alleviation_by_branch = alleviation_by_branch or {}
+        if alleviation_text and edges:
+            alleviation_by_branch.setdefault(edges[0].id, alleviation_text)
+
+        if alleviation_by_branch:
+            for edge in edges:
+                if edge.id in alleviation_by_branch:
+                    edge.alleviation = alleviation_by_branch[edge.id]
 
         return GridTopologyResponse(nodes=nodes, edges=edges, meta=meta)
 

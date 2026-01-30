@@ -128,9 +128,15 @@ function ConstraintRow({
     const tone = toneForUtilization(utilization);
     const colors = toneClasses(tone);
     const pct = clamp(utilization * 100, 0, 100);
+    const borderClass =
+        tone === 'critical'
+            ? 'border-[#E10600]/70 shadow-[0_0_12px_rgba(225,6,0,0.2)]'
+            : tone === 'warning'
+                ? 'border-[#FFB800]/60'
+                : 'border-[#25110A]';
 
     return (
-        <div className="rounded-lg border border-[#3A1A0A] bg-[#120805]/80 p-3">
+        <div className={clsx("rounded-lg border bg-[#120805]/80 p-3", borderClass)}>
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-xs text-[#7A3A1A] uppercase tracking-[0.2em]">
                     <Icon className="w-3.5 h-3.5" />
@@ -303,49 +309,66 @@ export default function LoadShiftPanel({ telemetry }: { telemetry: TelemetryPoin
         : 'NO DATA';
 
     return (
-        <div className="relative isolate w-full rounded-xl border border-[#3A1A0A] bg-[#0B0705] shadow-xl">
+        <div className={clsx(
+            "relative isolate w-full rounded-xl border bg-[#0B0705] shadow-xl",
+            metrics.hasTelemetry && !metrics.canShift
+                ? "border-[#E10600]/60 shadow-[0_0_18px_rgba(225,6,0,0.18)]"
+                : "border-[#24110A]"
+        )}>
             <div className="absolute inset-0 opacity-20 pointer-events-none bg-[radial-gradient(circle_at_top,_rgba(255,90,0,0.35),_transparent_55%)]" />
             <div className="relative flex flex-col gap-4 p-5">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                        <div className="text-[11px] uppercase tracking-[0.3em] text-[#7A3A1A]">Safe Shift Headroom</div>
-                        <div className="mt-2 text-3xl sm:text-4xl font-bold text-[#FFE65C]">
-                            {metrics.hasTelemetry ? formatKw(metrics.safeShiftKw) : 'n/a'}
-                            <span className="ml-2 text-sm font-medium text-[#7A3A1A]">kW</span>
+                <div className="rounded-xl border border-[#3A1A0A] bg-[#120805]/85 px-4 py-3 shadow-lg">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.3em] text-[#7A3A1A]">
+                                {metrics.canShift ? 'Shift Allowed' : 'Shift Hold'}
+                                <span className={clsx('flex items-center gap-1 text-[10px] font-semibold', statusTone)}>
+                                    <StatusIcon className="h-3.5 w-3.5" />
+                                    {statusBadge}
+                                </span>
+                            </div>
+                            <div className={clsx('mt-1 text-2xl sm:text-3xl font-bold', metrics.canShift ? 'text-[#FFE65C]' : 'text-[#E10600]')}>
+                                {metrics.hasTelemetry ? formatKw(metrics.safeShiftKw) : 'n/a'}
+                                <span className="ml-2 text-xs font-medium text-[#7A3A1A]">kW</span>
+                            </div>
+                            <div className="mt-1 text-[11px] text-[#5A2A14]">
+                                Limiting: {metrics.primary} · Confidence {metrics.hasTelemetry ? `${Math.round(metrics.confidence * 100)}%` : 'n/a'}
+                            </div>
                         </div>
-                        <div className="mt-1 text-xs text-[#5A2A14]">Live headroom to shift load safely.</div>
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                            <button
+                                type="button"
+                                disabled={!metrics.canShift}
+                                className={clsx(
+                                    "inline-flex items-center rounded-md border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] transition-colors",
+                                    metrics.canShift
+                                        ? "border-[#FF5A00]/60 bg-[#120805] text-[#FFE65C] hover:border-[#FF5A00]/90"
+                                        : "border-[#3A1A0A] text-[#7A3A1A] cursor-not-allowed"
+                                )}
+                            >
+                                Execute Shift
+                            </button>
+                            <button
+                                type="button"
+                                className="inline-flex items-center rounded-md border border-[#3A1A0A] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#FFE65C] transition-colors hover:border-[#FF5A00]/60"
+                            >
+                                Simulate 60s
+                            </button>
+                            <button
+                                type="button"
+                                className="inline-flex items-center rounded-md border border-[#3A1A0A] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#FFE65C] transition-colors hover:border-[#FF5A00]/60"
+                            >
+                                Hold 5m
+                            </button>
+                        </div>
                     </div>
-                    <div className="grid grid-cols-3 gap-2">
-                        <TrendPill label="15M" summary={trends['15m']} />
-                        <TrendPill label="1H" summary={trends['1h']} />
-                        <TrendPill label="6H" summary={trends['6h']} />
-                    </div>
+                    <div className="mt-2 text-[11px] text-[#5A2A14]">{metrics.statusLine}</div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div className="rounded-lg border border-[#3A1A0A] bg-[#120805]/80 p-3">
-                        <div className="flex items-center justify-between">
-                            <div className="text-[11px] uppercase tracking-[0.25em] text-[#7A3A1A]">
-                                Can I shift load now
-                            </div>
-                            <div className={clsx('flex items-center gap-2 text-xs font-semibold', statusTone)}>
-                                <StatusIcon className="w-4 h-4" />
-                                {statusBadge}
-                            </div>
-                        </div>
-                        <div className="mt-2 text-sm text-[#FFE65C]">{metrics.statusLine}</div>
-                    </div>
-
-                    <div className="rounded-lg border border-[#3A1A0A] bg-[#120805]/80 p-3">
-                        <div className="text-[11px] uppercase tracking-[0.25em] text-[#7A3A1A]">Primary clamp reason</div>
-                        <div className="mt-2 flex items-center justify-between">
-                            <span className="text-lg font-semibold text-[#FFB800]">{metrics.primary}</span>
-                            <span className="text-xs text-[#7A3A1A]">
-                                Confidence {metrics.hasTelemetry ? `${Math.round(metrics.confidence * 100)}%` : 'n/a'}
-                            </span>
-                        </div>
-                        <div className="mt-1 text-xs text-[#5A2A14]">Limiting constraint across thermal, grid, or policy.</div>
-                    </div>
+                <div className="flex flex-wrap gap-2">
+                    <TrendPill label="15M" summary={trends['15m']} />
+                    <TrendPill label="1H" summary={trends['1h']} />
+                    <TrendPill label="6H" summary={trends['6h']} />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -384,7 +407,7 @@ export default function LoadShiftPanel({ telemetry }: { telemetry: TelemetryPoin
                 </div>
 
                 <div className="rounded-lg border border-[#3A1A0A] bg-[#120805]/90 p-3">
-                    <div className="text-[11px] uppercase tracking-[0.25em] text-[#7A3A1A]">Recommended action</div>
+                    <div className="text-[11px] uppercase tracking-[0.25em] text-[#7A3A1A]">Operator guidance</div>
                     <div className="mt-2 text-sm text-[#FFE65C]">{metrics.recommendedAction}</div>
                 </div>
             </div>

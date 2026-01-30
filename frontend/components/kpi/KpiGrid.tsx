@@ -7,20 +7,21 @@ import { KpiCard, KpiCardProps } from "./KpiCard";
 type KpiGridProps = {
   items: KpiCardProps[];
   isLoading?: boolean;
-  columns?: 2 | 3 | 4; // Control grid columns
+  columns?: 2 | 3 | 4 | 6; // Control grid columns
   layout?: "row" | "grid";
 };
 
 export function KpiGrid({
   items,
   isLoading,
-  columns = 3,
-  layout = "row",
+  columns = 4,
+  layout = "grid",
 }: KpiGridProps) {
-  const columnClasses: Record<2 | 3 | 4, string> = {
+  const columnClasses: Record<2 | 3 | 4 | 6, string> = {
     2: "sm:grid-cols-2",
     3: "sm:grid-cols-2 lg:grid-cols-3",
-    4: "sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4",
+    4: "sm:grid-cols-2 lg:grid-cols-4",
+    6: "sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-6",
   };
 
   if (layout === "row") {

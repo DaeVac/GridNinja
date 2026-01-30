@@ -17,6 +17,9 @@ export type TelemetryPoint = {
     q_active_kw?: number;
     cooling_target_kw?: number;
     cooling_cop?: number;
+    price_usd_per_mwh?: number;
+    scenario_id?: string | null;
+    t_sim_s?: number | null;
 };
 
 type WSStatus = "connecting" | "open" | "error" | "closed";

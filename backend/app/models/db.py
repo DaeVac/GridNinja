@@ -3,6 +3,7 @@ from datetime import datetime
 import os
 
 from sqlmodel import Field, SQLModel, create_engine, Session, Relationship
+from sqlalchemy import text
 
 # ============================================================
 # DB MODELS
@@ -22,6 +23,7 @@ class DecisionRecord(SQLModel, table=True):
     approved_kw: float
     blocked: bool
     reason_code: str
+    confidence: Optional[float] = None
     
     # Explainability
     primary_constraint: Optional[str] = None
@@ -65,6 +67,14 @@ engine = create_engine(DATABASE_URL, echo=False, connect_args=connect_args)
 
 def create_db_and_tables():
     SQLModel.metadata.create_all(engine)
+    if DATABASE_URL.startswith("sqlite"):
+        try:
+            with engine.begin() as conn:
+                cols = [row[1] for row in conn.execute(text("PRAGMA table_info(decisionrecord)"))]
+                if "confidence" not in cols:
+                    conn.execute(text("ALTER TABLE decisionrecord ADD COLUMN confidence REAL"))
+        except Exception:
+            pass
 
 def get_session():
     with Session(engine) as session:

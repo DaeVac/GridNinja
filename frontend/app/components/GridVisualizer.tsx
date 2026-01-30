@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Activity, Server, Zap } from 'lucide-react';
 import ReactFlow, {
   Background,
@@ -24,6 +24,8 @@ interface GridTopologyNode {
   kind: GridNodeKind;
   x: number;
   y: number;
+  v_pu?: number;
+  criticality?: number;
 }
 
 interface GridTopologyEdge {
@@ -32,6 +34,12 @@ interface GridTopologyEdge {
   target: string;
   r_ohm: number;
   x_ohm: number;
+  p_mw?: number;
+  loading_pct?: number;
+  rating_mva?: number;
+  thermal_limit_mw?: number;
+  margin_pct?: number;
+  alleviation?: string;
 }
 
 interface PredictionResponse {
@@ -41,6 +49,31 @@ interface PredictionResponse {
   reason_code: string;
   debug?: Record<string, number>;
 }
+
+type OverlayMode = 'flow' | 'loading' | 'voltage';
+
+type NodeData = {
+  label: React.ReactNode;
+  labelText?: string;
+  kind?: GridNodeKind;
+  v_pu?: number;
+  criticality?: number;
+};
+
+type EdgeData = {
+  branchId: string;
+  p_mw?: number;
+  loading_pct?: number;
+  rating_mva?: number;
+  thermal_limit_mw?: number;
+  margin_pct?: number;
+  alleviation?: string;
+};
+
+type HoverState =
+  | { kind: 'edge'; x: number; y: number; data: EdgeData }
+  | { kind: 'node'; x: number; y: number; data: NodeData & { id: string } }
+  | null;
 
 // Allow env override, default to relative /api for proxying
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
@@ -72,11 +105,23 @@ const CustomNodeLabel = ({
   label,
   kind,
   isDc,
+  voltageText,
+  showVoltage,
+  voltageTone,
 }: {
   label: string;
   kind: GridNodeKind;
   isDc: boolean;
+  voltageText?: string;
+  showVoltage?: boolean;
+  voltageTone?: 'safe' | 'near' | 'viol' | 'unknown';
 }) => {
+  const voltageClass =
+    voltageTone === 'viol'
+      ? 'text-[#E10600]'
+      : voltageTone === 'near'
+        ? 'text-[#FFB800]'
+        : 'text-[#22c55e]';
   return (
     <div className="flex flex-col items-center justify-center">
       <div
@@ -94,6 +139,11 @@ const CustomNodeLabel = ({
       <div className="rounded border border-[#3A1A0A] bg-[#120805]/80 px-1.5 text-[10px] font-semibold text-[#F8F5EE]">
         {label}
       </div>
+      {showVoltage && voltageText && (
+        <div className={clsx('mt-1 rounded bg-[#120805]/80 px-1 text-[9px] font-mono', voltageClass)}>
+          {voltageText}
+        </div>
+      )}
     </div>
   );
 };
@@ -102,6 +152,47 @@ const FALLBACK_LEVELS = [1, 4, 8, 10, 10];
 const FALLBACK_PV_BUSES = new Set([6, 12, 18, 24, 30]);
 const FALLBACK_SUBSTATION_BUS = 1;
 const FALLBACK_DC_BUS = 18;
+
+const LOADING_NEAR = 90;
+const LOADING_VIOL = 100;
+const V_MIN = 0.95;
+const V_MAX = 1.05;
+const V_NEAR_BAND = 0.01;
+
+function edgeSeverity(loadingPct: number) {
+  if (!Number.isFinite(loadingPct)) return 'unknown';
+  if (loadingPct >= LOADING_VIOL) return 'viol';
+  if (loadingPct >= LOADING_NEAR) return 'near';
+  return 'safe';
+}
+
+function edgeStroke(sev: string) {
+  if (sev === 'viol') return '#E10600';
+  if (sev === 'near') return '#FFB800';
+  if (sev === 'safe') return '#22c55e';
+  return '#7A3A1A';
+}
+
+function edgeWidth(loadingPct: number) {
+  if (!Number.isFinite(loadingPct)) return 2;
+  const w = 2 + (Math.max(0, loadingPct - 50) / 50) * 4;
+  return Math.min(7, Math.max(2, w));
+}
+
+function voltageState(vpu: number) {
+  if (!Number.isFinite(vpu)) return 'unknown';
+  if (vpu < V_MIN || vpu > V_MAX) return 'viol';
+  if (vpu < V_MIN + V_NEAR_BAND || vpu > V_MAX - V_NEAR_BAND) return 'near';
+  return 'safe';
+}
+
+function nodeHalo(vpu: number) {
+  const s = voltageState(vpu);
+  if (s === 'viol') return '0 0 0 3px rgba(225,6,0,0.55)';
+  if (s === 'near') return '0 0 0 3px rgba(255,184,0,0.45)';
+  if (s === 'safe') return '0 0 0 2px rgba(34,197,94,0.25)';
+  return 'none';
+}
 
 const buildFallbackTopology = () => {
   const nodes: GridTopologyNode[] = [];
@@ -148,41 +239,68 @@ const buildFallbackTopology = () => {
   return { nodes, edges };
 };
 
-const toReactFlowNodes = (items: GridTopologyNode[]): Node[] =>
-  items.map((n) => ({
-    id: n.id,
-    position: { x: n.x, y: -n.y },
-    data: {
-      label: (
-        <CustomNodeLabel
-          label={n.label}
-          kind={n.kind}
-          isDc={n.kind === 'dc'}
-        />
-      ),
-    },
-    style: { background: 'transparent', border: 'none', width: 'auto' },
-  }));
+const toReactFlowNodes = (items: GridTopologyNode[]): Node<NodeData>[] => {
+  if (!items.length) return [];
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  const rawPositions = items.map((n) => {
+    const x = n.x;
+    const y = -n.y;
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    return { id: n.id, x, y };
+  });
+  const padding = 32;
+  const posMap = new Map(rawPositions.map((p) => [p.id, p]));
 
-const toReactFlowEdges = (items: GridTopologyEdge[]): Edge[] =>
-  items.map((e) => ({
-    id: e.id,
-    source: e.source,
-    target: e.target,
-    type: 'smoothstep',
-    animated: true,
-    style: { stroke: '#999', strokeWidth: 1.5 },
-    label: `R=${e.r_ohm.toFixed(2)}`,
-    labelStyle: { fontSize: 10, fill: '#F8F5EE', fontWeight: 600 },
-    labelBgPadding: [4, 2],
-    labelBgBorderRadius: 4,
-    labelBgStyle: {
-      fill: '#030101',
-      stroke: '#130303',
-      strokeWidth: 1,
-      opacity: 0.9,
-    },
-  }));
+  return items.map((n) => {
+    const raw = posMap.get(n.id);
+    const x = raw ? raw.x - minX + padding : 0;
+    const y = raw ? raw.y - minY + padding : 0;
+    return {
+      id: n.id,
+      position: { x, y },
+      data: {
+        label: (
+          <CustomNodeLabel
+            label={n.label}
+            kind={n.kind}
+            isDc={n.kind === 'dc'}
+          />
+        ),
+        labelText: n.label,
+        kind: n.kind,
+        v_pu: n.v_pu,
+        criticality: n.criticality,
+      },
+      style: { background: 'transparent', border: 'none', width: 'auto' },
+    };
+  });
+};
+
+const toReactFlowEdges = (items: GridTopologyEdge[]): Edge<EdgeData>[] =>
+  items.map((e) => {
+    const loading = Number.isFinite(e.loading_pct) ? (e.loading_pct as number) : NaN;
+    const margin =
+      Number.isFinite(loading) && loading >= 0 ? Math.max(0, 100 - loading) : e.margin_pct;
+    return {
+      id: e.id,
+      source: e.source,
+      target: e.target,
+      type: 'smoothstep',
+      animated: true,
+      style: { stroke: '#3A1A0A', strokeWidth: 2 },
+      data: {
+        branchId: e.id,
+        p_mw: e.p_mw,
+        loading_pct: e.loading_pct,
+        rating_mva: e.rating_mva,
+        thermal_limit_mw: e.thermal_limit_mw,
+        margin_pct: margin,
+        alleviation: e.alleviation,
+      },
+    };
+  });
 
 // --- Props ---
 interface GridVisualizerProps {
@@ -190,12 +308,15 @@ interface GridVisualizerProps {
 }
 
 export default function GridVisualizer({ telemetry }: GridVisualizerProps) {
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<NodeData>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<EdgeData>([]);
   const [topologyStatus, setTopologyStatus] = useState<
     'loading' | 'ready' | 'error'
   >('loading');
   const [topologyMessage, setTopologyMessage] = useState<string | null>(null);
+
+  const [overlay, setOverlay] = useState<OverlayMode>('loading');
+  const [hover, setHover] = useState<HoverState>(null);
 
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [prediction, setPrediction] = useState<PredictionResponse | null>(null);
@@ -220,10 +341,116 @@ export default function GridVisualizer({ telemetry }: GridVisualizerProps) {
     requestAnimationFrame(() => {
       const instance = rfInstanceRef.current;
       if (!instance) return;
-      instance.fitView({ padding: 0.2, duration: 250 });
+      instance.fitView({ padding: 0.08, duration: 350 });
       pendingFitRef.current = false;
     });
   }, []);
+
+  const styledNodes = useMemo(() => {
+    return nodes.map((n) => {
+      const data = (n.data ?? {}) as NodeData;
+      const vpu = data.v_pu ?? NaN;
+      const showVoltage = overlay === 'voltage';
+      const vState = voltageState(vpu);
+      const showVoltageText = showVoltage && vState !== 'safe';
+      const voltageText =
+        showVoltageText && Number.isFinite(vpu) ? vpu.toFixed(3) : undefined;
+      return {
+        ...n,
+        data: {
+          ...data,
+          label: (
+            <CustomNodeLabel
+              label={data.labelText ?? n.id}
+              kind={data.kind ?? 'load'}
+              isDc={data.kind === 'dc'}
+              voltageText={voltageText}
+              showVoltage={showVoltageText}
+              voltageTone={vState}
+            />
+          ),
+        },
+        style: {
+          ...(n.style ?? {}),
+          boxShadow: showVoltage ? nodeHalo(vpu) : 'none',
+          borderColor: '#3A1A0A',
+          animationDuration: showVoltage && vState === 'viol' ? '2.8s' : undefined,
+        },
+        className: showVoltage && vState === 'viol' ? 'animate-pulse' : n.className,
+      };
+    });
+  }, [nodes, overlay]);
+
+  const styledEdges = useMemo(() => {
+    return edges.map((e) => {
+      const data = (e.data ?? {}) as EdgeData;
+      const loading = data.loading_pct ?? NaN;
+      const sev = edgeSeverity(loading);
+      const showLoading = overlay === 'loading';
+      const showFlow = overlay === 'flow';
+      const baseStroke =
+        typeof e.style?.stroke === 'string' ? (e.style.stroke as string) : '#3A1A0A';
+      const baseWidth =
+        typeof e.style?.strokeWidth === 'number' ? e.style.strokeWidth : 2;
+
+      return {
+        ...e,
+        style: {
+          ...(e.style ?? {}),
+          stroke:
+            showLoading && Number.isFinite(loading)
+              ? edgeStroke(sev)
+              : showLoading
+                ? baseStroke
+                : baseStroke,
+          strokeWidth:
+            showLoading && Number.isFinite(loading)
+              ? edgeWidth(loading)
+              : showLoading
+                ? baseWidth
+                : baseWidth,
+          opacity: showLoading ? 1 : 0.9,
+        },
+        label:
+          showFlow && Number.isFinite(data.p_mw)
+            ? `${(data.p_mw as number).toFixed(1)} MW`
+            : undefined,
+        labelStyle: showFlow
+          ? { fill: '#FFE65C', fontSize: 10, fontFamily: 'ui-monospace' }
+          : undefined,
+        labelBgStyle: showFlow ? { fill: 'rgba(18,8,5,0.85)' } : undefined,
+        labelBgPadding: showFlow ? [6, 3] : undefined,
+        labelBgBorderRadius: showFlow ? 6 : undefined,
+      };
+    });
+  }, [edges, overlay]);
+
+  const onEdgeMouseMove = useCallback((evt: React.MouseEvent, edge: Edge) => {
+    setHover({
+      kind: 'edge',
+      x: evt.clientX,
+      y: evt.clientY,
+      data: (edge.data ?? { branchId: edge.id }) as EdgeData,
+    });
+  }, []);
+
+  const onNodeMouseMove = useCallback((evt: React.MouseEvent, node: Node) => {
+    const data = (node.data ?? {}) as NodeData;
+    setHover({
+      kind: 'node',
+      x: evt.clientX,
+      y: evt.clientY,
+      data: {
+        id: node.id,
+        label: data.label,
+        labelText: data.labelText,
+        v_pu: data.v_pu,
+        criticality: data.criticality,
+      },
+    });
+  }, []);
+
+  const clearHover = useCallback(() => setHover(null), []);
 
   // Helper: Cache Key
   const decisionKey = (decision: any) => {
@@ -235,6 +462,74 @@ export default function GridVisualizer({ telemetry }: GridVisualizerProps) {
       decision?.approved_deltaP_kw,
       decision?.ts,
     ].join('|');
+  };
+
+  const Chip = ({ id, label }: { id: OverlayMode; label: string }) => {
+    const active = overlay === id;
+    return (
+      <button
+        type="button"
+        onClick={() => setOverlay(id)}
+        className={clsx(
+          'rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] border transition',
+          active
+            ? 'bg-[#120805] text-[#FFE65C] border-[#E10600]/60 shadow-[0_0_12px_rgba(225,6,0,0.25)]'
+            : 'bg-[#0B0705] text-[#7A3A1A] border-[#3A1A0A] hover:border-[#E10600]/40 hover:text-[#FFE65C]'
+        )}
+      >
+        {label}
+      </button>
+    );
+  };
+
+  const renderLegend = () => {
+    if (overlay === 'flow') {
+      return (
+        <div className="mt-2 text-[10px] text-[#FFE65C]">
+          Flow labels: positive = source -&gt; target
+        </div>
+      );
+    }
+
+    const items =
+      overlay === 'loading'
+        ? [
+            { label: 'Safe', color: '#22c55e' },
+            { label: 'Near', color: '#FFB800' },
+            { label: 'Violating', color: '#E10600' },
+          ]
+        : [
+            { label: 'Within band', color: '#22c55e' },
+            { label: 'Near band', color: '#FFB800' },
+            { label: 'Violating', color: '#E10600' },
+          ];
+
+    return (
+      <div className="mt-2 flex flex-col gap-1 text-[10px] text-[#FFE65C]">
+        <div className="flex flex-wrap items-center gap-3">
+          {items.map((item) => (
+            <div key={item.label} className="flex items-center gap-2">
+              <span
+                className="h-2 w-2 rounded-full"
+                style={{ backgroundColor: item.color }}
+              />
+              <span className="uppercase tracking-[0.2em] text-[#7A3A1A]">
+                {item.label}
+              </span>
+            </div>
+          ))}
+        </div>
+        {overlay === 'loading' ? (
+          <div className="text-[9px] uppercase tracking-[0.2em] text-[#7A3A1A]">
+            Near {"\u2265"} 90% · Violation {"\u2265"} 100%
+          </div>
+        ) : (
+          <div className="text-[9px] uppercase tracking-[0.2em] text-[#7A3A1A]">
+            Within 0.95-1.05 p.u. · Near 0.95-0.96 / 1.04-1.05
+          </div>
+        )}
+      </div>
+    );
   };
 
   // Action: Test Injection
@@ -353,7 +648,16 @@ export default function GridVisualizer({ telemetry }: GridVisualizerProps) {
   useEffect(() => {
     if (!nodes.length || !rfInstanceRef.current) return;
     requestFit();
-  }, [nodes.length, requestFit]);
+  }, [nodes.length, edges.length, requestFit]);
+
+  useEffect(() => {
+    if (!rfInstanceRef.current) return;
+    const el = document.getElementById('gridviz');
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => requestFit());
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [requestFit]);
 
   useEffect(() => {
     if (!postMortemOpen) return;
@@ -439,12 +743,30 @@ export default function GridVisualizer({ telemetry }: GridVisualizerProps) {
     <div className="relative flex h-full w-full overflow-hidden">
       {/* React Flow Canvas */}
       <div className="relative h-full flex-1">
+        <div className="absolute left-3 top-3 z-20 flex flex-wrap gap-2 rounded-full border border-[#3A1A0A] bg-[#120805]/70 backdrop-blur px-2 py-1">
+          <Chip id="flow" label="Power Flow (MW)" />
+          <Chip id="loading" label="Congestion (%)" />
+          <Chip id="voltage" label="Voltage (p.u.)" />
+        </div>
+
+        <div className="absolute left-3 bottom-3 z-20 rounded-lg border border-[#3A1A0A] bg-[#120805]/90 px-3 py-2 shadow-lg">
+          <div className="text-[9px] font-semibold uppercase tracking-[0.2em] text-[#7A3A1A]">
+            Legend
+          </div>
+          {renderLegend()}
+        </div>
+
         <ReactFlow
-          nodes={nodes}
-          edges={edges}
+          nodes={styledNodes}
+          edges={styledEdges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onNodeClick={onNodeClick}
+          onEdgeMouseMove={onEdgeMouseMove}
+          onNodeMouseMove={onNodeMouseMove}
+          onEdgeMouseLeave={clearHover}
+          onNodeMouseLeave={clearHover}
+          onPaneMouseLeave={clearHover}
           defaultEdgeOptions={{ animated: true }}
           fitView
           onInit={(instance) => {
@@ -453,12 +775,162 @@ export default function GridVisualizer({ telemetry }: GridVisualizerProps) {
               requestFit();
             }
           }}
+          minZoom={0.05}
+          maxZoom={2.5}
+          fitViewOptions={{ padding: 0.08 }}
           attributionPosition="bottom-left"
           className="h-full w-full"
         >
           <Background color="#3A1A0A" gap={20} />
           <Controls />
         </ReactFlow>
+
+        {overlay === 'voltage' && (
+          <div className="absolute right-4 top-4 z-20 flex flex-col gap-2">
+            <div className="rounded-lg border border-[#3A1A0A] bg-[#120805]/90 px-3 py-2 text-[10px] text-[#FFE65C] shadow-lg">
+              {(() => {
+                const values = nodes
+                  .map((n) => ({
+                    id: n.id,
+                    label: (n.data as NodeData | undefined)?.labelText ?? n.id,
+                    v: (n.data as NodeData | undefined)?.v_pu,
+                  }))
+                  .filter((n) => Number.isFinite(n.v)) as { id: string; label: string; v: number }[];
+                if (!values.length) return <div className="text-[#7A3A1A]">Voltage stats unavailable</div>;
+                let vmin = values[0];
+                let vmax = values[0];
+                for (const v of values) {
+                  if (v.v < vmin.v) vmin = v;
+                  if (v.v > vmax.v) vmax = v;
+                }
+                return (
+                  <>
+                    <div className="text-[9px] uppercase tracking-[0.2em] text-[#7A3A1A]">Voltage extrema</div>
+                    <div className="mt-1 flex flex-col gap-1 font-mono">
+                      <div>Vmin {vmin.v.toFixed(3)} @ {vmin.label}</div>
+                      <div>Vmax {vmax.v.toFixed(3)} @ {vmax.label}</div>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+            {(() => {
+              const violCount = nodes.filter((n) => {
+                const v = (n.data as NodeData | undefined)?.v_pu;
+                return Number.isFinite(v) && voltageState(v as number) === 'viol';
+              }).length;
+              if (!violCount) return null;
+              return (
+                <div className="rounded-lg border border-[#3A1A0A] bg-[#120805]/90 px-3 py-2 text-[10px] text-[#FFE65C] shadow-lg">
+                  <div className="text-[9px] uppercase tracking-[0.2em] text-[#7A3A1A]">Violation cluster</div>
+                  <div className="mt-1 font-mono">{violCount} buses violating</div>
+                  <div className="mt-1 text-[#7A3A1A]">Likely cause: voltage sag / reactive deficit</div>
+                </div>
+              );
+            })()}
+          </div>
+        )}
+
+        {hover && (
+          <div
+            className="fixed z-50 pointer-events-none"
+            style={{ left: hover.x + 12, top: hover.y + 12 }}
+          >
+            <div className="w-64 rounded-lg border border-[#3A1A0A] bg-[#120805]/95 p-3 shadow-xl">
+              {hover.kind === 'edge' ? (
+                <>
+                  <div className="text-[10px] uppercase tracking-[0.2em] text-[#7A3A1A] font-semibold">
+                    Branch
+                  </div>
+                  <div className="mt-1 text-sm font-semibold text-[#FFE65C]">
+                    {hover.data.branchId}
+                  </div>
+
+                  <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                    <div className="text-[#7A3A1A]">Loading</div>
+                    <div className="text-slate-100 font-mono">
+                      {Number.isFinite(hover.data.loading_pct)
+                        ? `${hover.data.loading_pct!.toFixed(1)}%`
+                        : '--'}
+                    </div>
+
+                    <div className="text-[#7A3A1A]">Flow</div>
+                    <div className="text-slate-100 font-mono">
+                      {Number.isFinite(hover.data.p_mw)
+                        ? `${hover.data.p_mw!.toFixed(2)} MW`
+                        : '--'}
+                    </div>
+
+                    <div className="text-[#7A3A1A]">Margin</div>
+                    <div className="text-slate-100 font-mono">
+                      {Number.isFinite(hover.data.margin_pct)
+                        ? `${hover.data.margin_pct!.toFixed(1)}%`
+                        : '--'}
+                    </div>
+                  </div>
+
+                  {hover.data.alleviation && (
+                    <div className="mt-3">
+                      <div className="text-[10px] uppercase tracking-[0.2em] text-[#7A3A1A] font-semibold">
+                        Recommended Alleviation
+                      </div>
+                      <div className="mt-1 text-xs text-slate-200">
+                        {hover.data.alleviation}
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className="text-[10px] uppercase tracking-[0.2em] text-[#7A3A1A] font-semibold">
+                    Bus
+                  </div>
+                  <div className="mt-1 text-sm font-semibold text-[#FFE65C]">
+                    {hover.data.labelText ?? hover.data.id}
+                  </div>
+
+                  <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                    <div className="text-[#7A3A1A]">Voltage</div>
+                    <div className="text-slate-100 font-mono">
+                      {Number.isFinite(hover.data.v_pu)
+                        ? `${hover.data.v_pu!.toFixed(3)} p.u.`
+                        : '--'}
+                    </div>
+                    <div className="text-[#7A3A1A]">Delta</div>
+                    <div className="text-slate-100 font-mono">
+                      {(() => {
+                        if (!Number.isFinite(hover.data.v_pu)) return '--';
+                        const vpu = hover.data.v_pu as number;
+                        if (vpu < V_MIN) return `${(vpu - V_MIN).toFixed(3)} below`;
+                        if (vpu > V_MAX) return `${(vpu - V_MAX).toFixed(3)} above`;
+                        return 'within band';
+                      })()}
+                    </div>
+                  </div>
+                  {(() => {
+                    if (!Number.isFinite(hover.data.v_pu)) return null;
+                    const vpu = hover.data.v_pu as number;
+                    if (vpu < V_MIN) {
+                      return (
+                        <div className="mt-3 text-xs text-slate-200">
+                          Recommended: increase reactive support or curtail load at this bus.
+                        </div>
+                      );
+                    }
+                    if (vpu > V_MAX) {
+                      return (
+                        <div className="mt-3 text-xs text-slate-200">
+                          Recommended: curtail PV output or shift load toward this feeder.
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+                </>
+              )}
+            </div>
+          </div>
+        )}
 
         {topologyStatus !== 'ready' && (
           <div className="absolute bottom-4 left-4 z-20 rounded-lg border border-[#3A1A0A] bg-[#120805]/90 px-4 py-3 text-xs text-[#FFE65C] shadow-lg">

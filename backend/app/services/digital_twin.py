@@ -23,8 +23,9 @@ import math
 import random
 import uuid
 from collections import deque
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 from collections import Counter
 import torch
 
@@ -161,6 +162,16 @@ def compute_trace_kpis(events: List[Dict[str, Any]], window_s: int = 900) -> Dic
     }
 
 
+@dataclass
+class DemoScenarioState:
+    scenario_id: str
+    start_ts: datetime
+    speed: float
+    duration_s: int
+    seed: int
+    emitted: Set[str] = field(default_factory=set)
+
+
 # ============================================================
 # DIGITAL TWIN SERVICE
 # ============================================================
@@ -201,6 +212,165 @@ class DigitalTwinService:
         # Latest telemetry point (for WebSockets)
         self._latest: Optional[Dict[str, Any]] = None
         self._last_thermal_debug: Dict[str, float] = {}
+
+        # Demo scenario runner
+        self._demo_scenario: Optional[DemoScenarioState] = None
+        self._demo_event_log: deque = deque(maxlen=20)
+        self._demo_price_multiplier: float = 1.0
+        self._demo_last_effects: Dict[str, float] = {}
+
+    # -----------------------------
+    # Demo Scenario Runner
+    # -----------------------------
+    def list_demo_scenarios(self) -> List[Dict[str, Any]]:
+        return [
+            {
+                "id": "heat_wave",
+                "label": "Heat Wave + Cooling Degradation",
+                "duration_s": 600,
+                "description": "Ambient temp rises, cooling efficiency drops, thermal margin tightens.",
+            },
+            {
+                "id": "price_spike",
+                "label": "Price Spike + Demand Surge",
+                "duration_s": 300,
+                "description": "Energy prices spike briefly; demand surges and value of shifting jumps.",
+            },
+        ]
+
+    def start_demo_scenario(
+        self, scenario_id: str, speed: float = 1.0, seed: Optional[int] = None
+    ) -> Dict[str, Any]:
+        scenarios = {s["id"]: s for s in self.list_demo_scenarios()}
+        if scenario_id not in scenarios:
+            raise ValueError("unknown scenario")
+        speed = max(0.1, min(20.0, float(speed)))
+        seed_val = int(seed) if seed is not None else self._demo_seed
+        self._demo_scenario = DemoScenarioState(
+            scenario_id=scenario_id,
+            start_ts=datetime.now(),
+            speed=speed,
+            duration_s=int(scenarios[scenario_id]["duration_s"]),
+            seed=seed_val,
+        )
+        self._demo_event_log.clear()
+        self._demo_price_multiplier = 1.0
+        self._demo_last_effects = {}
+        return {
+            "scenario_id": scenario_id,
+            "speed": speed,
+            "seed": seed_val,
+            "duration_s": scenarios[scenario_id]["duration_s"],
+        }
+
+    def stop_demo_scenario(self) -> None:
+        self._demo_scenario = None
+        self._demo_event_log.clear()
+        self._demo_price_multiplier = 1.0
+        self._demo_last_effects = {}
+
+    def get_demo_status(self) -> Dict[str, Any]:
+        if not self._demo_scenario:
+            return {
+                "active": False,
+                "scenario_id": None,
+                "t_sim_s": 0.0,
+                "speed": 1.0,
+                "event_log": list(self._demo_event_log),
+            }
+        now = datetime.now()
+        t_sim = (now - self._demo_scenario.start_ts).total_seconds() * self._demo_scenario.speed
+        return {
+            "active": True,
+            "scenario_id": self._demo_scenario.scenario_id,
+            "t_sim_s": round(t_sim, 1),
+            "speed": self._demo_scenario.speed,
+            "event_log": list(self._demo_event_log),
+        }
+
+    def _demo_emit_event(self, key: str, message: str, t_sim: float) -> None:
+        if not self._demo_scenario:
+            return
+        if key in self._demo_scenario.emitted:
+            return
+        self._demo_scenario.emitted.add(key)
+        self._demo_event_log.append(
+            {
+                "ts": datetime.now().isoformat(),
+                "scenario_id": self._demo_scenario.scenario_id,
+                "t_sim_s": round(t_sim, 1),
+                "message": message,
+            }
+        )
+
+    def _demo_effects(self) -> Dict[str, float]:
+        if not self._demo_scenario:
+            self._demo_price_multiplier = 1.0
+            return {}
+
+        now = datetime.now()
+        t_sim = (now - self._demo_scenario.start_ts).total_seconds() * self._demo_scenario.speed
+        duration = float(self._demo_scenario.duration_s)
+        if t_sim >= duration:
+            self.stop_demo_scenario()
+            return {}
+
+        sid = self._demo_scenario.scenario_id
+        effects: Dict[str, float] = {
+            "t_sim_s": float(t_sim),
+            "load_delta_kw": 0.0,
+            "ambient_delta_c": 0.0,
+            "cooling_cop_scale": 1.0,
+            "price_multiplier": 1.0,
+            "freq_bias_hz": 0.0,
+        }
+
+        if sid == "heat_wave":
+            # Ramp up 0-120s, peak 120-360s, cool down 360-600s
+            if t_sim < 120:
+                ramp = t_sim / 120.0
+            elif t_sim < 360:
+                ramp = 1.0
+            else:
+                ramp = max(0.0, 1.0 - (t_sim - 360.0) / 240.0)
+
+            effects["load_delta_kw"] = 800.0 * ramp
+            effects["ambient_delta_c"] = 10.0 * ramp
+            effects["cooling_cop_scale"] = 1.0 - 0.3 * ramp
+            effects["freq_bias_hz"] = -0.03 * ramp
+
+            if t_sim >= 1.0:
+                self._demo_emit_event("heat_wave_start", "Heat wave begins. Ambient temp rising.", t_sim)
+            if t_sim >= 140.0:
+                self._demo_emit_event("heat_wave_peak", "Peak heat. Cooling efficiency degraded.", t_sim)
+            if t_sim >= 400.0:
+                self._demo_emit_event("heat_wave_recover", "Heat wave easing. Thermal margin recovering.", t_sim)
+
+        elif sid == "price_spike":
+            # Spike 60-180s, cool down 180-240s
+            if t_sim < 60:
+                mult = 1.0
+            elif t_sim < 180:
+                mult = 6.0
+            elif t_sim < 240:
+                mult = 3.0
+            else:
+                mult = 1.0
+
+            effects["price_multiplier"] = mult
+            effects["load_delta_kw"] = 500.0 if 60 <= t_sim <= 180 else 200.0
+            effects["freq_bias_hz"] = -0.015 if 60 <= t_sim <= 180 else 0.0
+
+            if t_sim >= 60.0:
+                self._demo_emit_event("price_spike_start", "Price spike detected. Shift value increased.", t_sim)
+            if t_sim >= 75.0:
+                self._demo_emit_event("price_spike_peak", "Price spike peak window.", t_sim)
+            if t_sim >= 200.0:
+                self._demo_emit_event("price_spike_end", "Price spike ending. Conditions stabilizing.", t_sim)
+
+        self._demo_price_multiplier = float(effects.get("price_multiplier", 1.0))
+        self._demo_last_effects = effects
+        return effects
 
     def get_latest_telemetry(self) -> Optional[Dict[str, Any]]:
         return self._latest
@@ -464,6 +634,24 @@ class DigitalTwinService:
             "prediction_debug": pred if isinstance(pred, dict) else None,
         }
 
+        # Heuristic confidence for UI (until model provides it)
+        confidence = 0.85
+        if plan.blocked:
+            confidence = 0.4
+        elif abs(float(approved_kw)) + 1e-9 < abs(float(deltaP_request_kw)):
+            confidence = 0.65
+        if plan.constraint_value is not None and plan.constraint_threshold is not None:
+            try:
+                margin = float(plan.constraint_threshold) - float(plan.constraint_value)
+                if margin < 0:
+                    confidence = min(confidence, 0.35)
+                elif margin < 0.5:
+                    confidence = min(confidence, 0.55)
+                elif margin < 1.0:
+                    confidence = min(confidence, 0.7)
+            except Exception:
+                pass
+
         # 2. Persist to DB
         from sqlmodel import Session
         from app.models.db import engine, DecisionRecord, TraceRecord
@@ -482,6 +670,7 @@ class DigitalTwinService:
                     approved_kw=float(approved_kw),
                     blocked=bool(plan.blocked),
                     reason_code=str(plan.reason),
+                    confidence=float(confidence),
                     
                     primary_constraint=str(plan.primary_constraint.value) if plan.primary_constraint else None,
                     constraint_value=float(plan.constraint_value) if plan.constraint_value is not None else None,
@@ -531,9 +720,24 @@ class DigitalTwinService:
         base_load = 1000.0
         # Simple random fluctuation
         current_load = base_load + self._rng.uniform(-20, 20)
+
+        demo_effects = self._demo_effects()
+        if demo_effects:
+            current_load += float(demo_effects.get("load_delta_kw", 0.0))
         
         # 2. Evolve Thermal State
-        twin = ThermalTwin(self.therm_cfg, self.therm_state)
+        cfg = self.therm_cfg
+        if demo_effects:
+            try:
+                cfg = self.therm_cfg.model_copy(deep=True)
+            except Exception:
+                try:
+                    cfg = ThermalTwinConfig(**self.therm_cfg.model_dump())
+                except Exception:
+                    cfg = ThermalTwinConfig(**self.therm_cfg.dict())
+            cfg.T_ambient = float(cfg.T_ambient) + float(demo_effects.get("ambient_delta_c", 0.0))
+            cfg.Cooling_COP = float(cfg.Cooling_COP) * float(demo_effects.get("cooling_cop_scale", 1.0))
+        twin = ThermalTwin(cfg, self.therm_state)
         # We step the twin forward by dt_s
         pred = twin.step(P_it_kw=current_load, dt_s=dt_s)
         self._last_thermal_debug = {
@@ -544,7 +748,10 @@ class DigitalTwinService:
         }
         
         # Update latest telemetry cache (async to avoid blocking on GNN)
-        self._latest = await self._compute_latest_telemetry_point_async(current_load)
+        self._latest = await self._compute_latest_telemetry_point_async(
+            current_load,
+            demo_effects=demo_effects,
+        )
         
         # self.therm_state is updated in-place by twin.step
         
@@ -553,7 +760,9 @@ class DigitalTwinService:
         
         return self.therm_state
 
-    async def _compute_latest_telemetry_point_async(self, current_load: float) -> Dict[str, Any]:
+    async def _compute_latest_telemetry_point_async(
+        self, current_load: float, demo_effects: Optional[Dict[str, float]] = None
+    ) -> Dict[str, Any]:
         """
         Computes a single telemetry point for critical real-time monitoring.
         Uses asyncio.to_thread to offload GNN inference and prevent event loop starvation.
@@ -565,6 +774,8 @@ class DigitalTwinService:
         # Occasional random dip logic (1% chance per second)
         dip = (self._rng.random() < 0.01)
         freq = (base_freq - 0.15 + self._rng.uniform(-0.02, 0.02)) if dip else (base_freq + self._rng.uniform(-0.02, 0.02))
+        if demo_effects:
+            freq += float(demo_effects.get("freq_bias_hz", 0.0))
         stress = 0.85 if dip else 0.10
         rocof = 0.0 # simplified for single point
         
@@ -596,6 +807,11 @@ class DigitalTwinService:
             except:
                 pass
 
+        price_multiplier = float(demo_effects.get("price_multiplier", 1.0)) if demo_effects else 1.0
+        price_usd_per_mwh = 60.0 * price_multiplier
+        scenario_id = self._demo_scenario.scenario_id if self._demo_scenario else None
+        t_sim = float(demo_effects.get("t_sim_s", 0.0)) if demo_effects else None
+
         return {
             "ts": now.isoformat(),
             "frequency_hz": float(freq),
@@ -611,7 +827,15 @@ class DigitalTwinService:
             "q_active_kw": float(self._last_thermal_debug.get("q_active_kw", 0.0)),
             "cooling_target_kw": float(self._last_thermal_debug.get("cooling_target_kw", 0.0)),
             "cooling_cop": float(self._last_thermal_debug.get("cooling_cop", 0.0)),
+            "price_usd_per_mwh": float(price_usd_per_mwh),
+            "scenario_id": scenario_id,
+            "t_sim_s": t_sim,
         }
     def get_kpi_summary(self, window_s: int = 900) -> Dict[str, Any]:
         events = list(self.trace)
-        return compute_trace_kpis(events, window_s=window_s)
+        kpis = compute_trace_kpis(events, window_s=window_s)
+        if self._demo_price_multiplier != 1.0:
+            kpis["money_saved_usd"] = float(
+                round(kpis.get("money_saved_usd", 0.0) * self._demo_price_multiplier, 2)
+            )
+        return kpis

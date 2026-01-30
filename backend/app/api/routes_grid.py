@@ -18,9 +18,11 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
+from sqlmodel import Session, select
 from app.schemas.grid import GridTopologyResponse, GridPredictionResponse
 from app.services.grid_service_real import GridServiceReal
 from app.deps import get_twin_service
+from app.models.db import engine, DecisionRecord
 
 router = APIRouter()
 grid = GridServiceReal()
@@ -28,7 +30,29 @@ grid = GridServiceReal()
 
 @router.get("/topology", response_model=GridTopologyResponse)
 async def grid_topology() -> GridTopologyResponse:
-    return grid.get_topology()
+    alleviation_text: Optional[str] = None
+
+    try:
+        with Session(engine) as session:
+            stmt = select(DecisionRecord).order_by(DecisionRecord.ts.desc()).limit(1)
+            record = session.exec(stmt).first()
+            if record is not None:
+                approved_kw = float(record.approved_kw)
+                requested_kw = float(record.requested_kw)
+                direction = "export" if approved_kw >= 0 else "import"
+                magnitude = abs(approved_kw)
+                status = "BLOCKED" if record.blocked else "ALLOWED"
+                if not record.blocked and abs(approved_kw) + 1e-6 < abs(requested_kw):
+                    status = "CLIPPED"
+                reason = record.reason_code or "OK"
+                alleviation_text = (
+                    f"{status}: controller recommends {direction} {magnitude:.0f} kW "
+                    f"(reason: {reason})."
+                )
+    except Exception:
+        alleviation_text = None
+
+    return grid.get_topology(alleviation_text=alleviation_text)
 
 
 @router.get("/predict", response_model=GridPredictionResponse)

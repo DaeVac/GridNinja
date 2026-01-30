@@ -20,9 +20,12 @@ Contract:
 from __future__ import annotations
 
 from fastapi import APIRouter, Query, HTTPException
-from typing import Optional
+from typing import Optional, List
+from datetime import datetime
+from sqlmodel import Session, select
 from app.deps import get_twin_service
-from app.models.domain import DecisionResponse
+from app.models.domain import DecisionResponse, DecisionLogResponse, DecisionLogEntry
+from app.models.db import engine, DecisionRecord
 
 router = APIRouter()
 
@@ -114,3 +117,72 @@ async def decision_latest(
         })
 
     return DecisionResponse(**out)
+
+
+@router.get("/recent", response_model=DecisionLogResponse)
+async def decision_recent(
+    limit: int = Query(60, ge=1, le=200, description="Max number of recent decisions to return"),
+    coalesce: bool = Query(True, description="Coalesce repeated blocked decisions"),
+    window_s: int = Query(90, ge=10, le=600, description="Coalescing window in seconds"),
+) -> DecisionLogResponse:
+    """
+    Returns the most recent controller decisions for the operator log.
+    """
+    try:
+        with Session(engine) as session:
+            stmt = select(DecisionRecord).order_by(DecisionRecord.ts.desc()).limit(limit)
+            records = session.exec(stmt).all()
+    except Exception:
+        records = []
+
+    def to_entry(r: DecisionRecord) -> DecisionLogEntry:
+        return DecisionLogEntry(
+            decision_id=r.decision_id,
+            ts=r.ts.isoformat(),
+            requested_kw=r.requested_kw,
+            approved_kw=r.approved_kw,
+            blocked=r.blocked,
+            reason_code=r.reason_code,
+            primary_constraint=r.primary_constraint,
+            constraint_value=r.constraint_value,
+            constraint_threshold=r.constraint_threshold,
+            confidence=r.confidence,
+        )
+
+    if not coalesce:
+        items = [to_entry(r) for r in records]
+    else:
+        items: List[DecisionLogEntry] = []
+        for r in records:
+            entry = to_entry(r)
+            if not entry.blocked:
+                entry.count = 1
+                entry.first_ts = entry.ts
+                entry.last_ts = entry.ts
+                items.append(entry)
+                continue
+
+            last = items[-1] if items else None
+            if (
+                last
+                and last.blocked
+                and last.reason_code == entry.reason_code
+                and (last.primary_constraint or "") == (entry.primary_constraint or "")
+                and abs(last.requested_kw - entry.requested_kw) < 1e-3
+                and last.last_ts
+            ):
+                delta = abs(
+                    datetime.fromisoformat(last.last_ts) - datetime.fromisoformat(entry.ts)
+                ).total_seconds()
+                if delta <= window_s:
+                    last.count = (last.count or 1) + 1
+                    last.first_ts = entry.ts
+                    last.last_ts = last.last_ts or last.ts
+                    continue
+
+            entry.count = 1
+            entry.first_ts = entry.ts
+            entry.last_ts = entry.ts
+            items.append(entry)
+
+    return DecisionLogResponse(ts=datetime.now().isoformat(), items=items)
